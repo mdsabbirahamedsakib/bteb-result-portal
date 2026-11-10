@@ -344,6 +344,24 @@
                             <span class="counter-label">⚡ স্ক্যান সময় ও পেজ</span>
                         </div>
                     </div>
+
+                    <!-- PDF Instant Verification & Preview Box -->
+                    <div id="pdfParsedPreviewContainer" class="hidden" style="margin-top:20px;background:var(--bg-card);border:1px solid rgba(16,185,129,0.3);border-radius:12px;padding:18px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
+                            <h4 style="margin:0;font-size:15px;color:#10b981;font-weight:600;">✅ ডাটাবেসে সেভ হওয়া রেজাল্ট ইনস্ট্যান্ট ভেরিফিকেশন (Instant Test)</h4>
+                            <a href="index.html" target="_blank" class="btn btn-outline" style="font-size:13px;padding:6px 14px;text-decoration:none;">
+                                🚀 স্টুডেন্ট পেজে রেজাল্ট দেখুন ➔
+                            </a>
+                        </div>
+                        <div style="display:flex;gap:10px;margin-bottom:12px;">
+                            <input type="text" id="pdfTestRollInput" class="form-input" placeholder="পিডিএফের যেকোনো ১টি রোল নম্বর লিখে এখানে রেজাল্ট টেস্ট করুন..." style="flex:1;">
+                            <button type="button" class="btn btn-primary" id="pdfTestRollBtn" style="white-space:nowrap;">যাচাই করুন</button>
+                        </div>
+                        <div id="pdfTestRollOutput" class="hidden" style="padding:12px 14px;border-radius:8px;margin-bottom:14px;font-size:14px;"></div>
+                        
+                        <h5 style="margin:12px 0 8px 0;font-size:13px;color:var(--text-muted);">📋 পিডিএফ থেকে সংরক্ষিত শিক্ষার্থীদের তালিকা (নমুনা প্রথম ১০টি):</h5>
+                        <div id="pdfSampleRollsList" style="max-height:220px;overflow-y:auto;border:1px solid var(--border-color);border-radius:8px;font-size:13px;background:var(--bg-main);"></div>
+                    </div>
                 </div>
             </div>
             <div class="admin-section">
@@ -396,8 +414,7 @@
                                 <span class="toolbar-badge" id="detectedRollBadge">ডিটেক্টেড রোল: 0</span>
                             </div>
                             <div class="toolbar-right">
-                                <button type="button" class="btn btn-outline" id="loadSampleTextBtn" style="padding:4px 10px;font-size:0.8rem;">
-                                    📋 ডেমো টেক্সট লোড করুন
+                                <button type="button" class="btn btn-outline" id="loadSampleTextBtn" style="display:none;">
                                 </button>
                                 <button type="button" class="btn btn-outline" id="clearEditorBtn" style="padding:4px 10px;font-size:0.8rem;color:#ef4444;">
                                     🧹 পরিষ্কার করুন

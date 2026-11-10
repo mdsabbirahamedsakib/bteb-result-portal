@@ -44,8 +44,17 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Pre-build O(1) index map for instant lookups
-    if (typeof BTEBParser !== 'undefined' && BTEBParser.buildIndex) {
-        BTEBParser.buildIndex(currentRawData);
+    if (typeof BTEBStorage !== 'undefined' && BTEBStorage.initDB) {
+        BTEBStorage.initDB();
+    }
+
+    if (typeof window !== 'undefined') {
+        window.addEventListener('bteb-storage-updated', function () {
+            if (typeof BTEBStorage !== 'undefined' && BTEBStorage.initDB) {
+                BTEBStorage.initDB();
+            }
+            renderQuickDemoPills();
+        });
     }
 
     var semesterNamesBangla = {
@@ -195,32 +204,31 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     /**
-     * Render Quick Click Demo Pills
+     * Render Active Database Status Indicator (Demo rolls removed)
      */
     function renderQuickDemoPills() {
         if (!quickDemoPills) return;
         quickDemoPills.innerHTML = '';
 
-        BTEBData.QUICK_DEMO_ROLLS.forEach(function (item) {
-            var btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'demo-pill pill-' + item.badge;
-            btn.innerHTML =
-                '<span class="pill-roll">#' + item.roll + '</span>' +
-                '<span class="pill-tag">' + item.label + '</span>';
-            btn.title = item.desc;
-            btn.addEventListener('click', function () {
-                rollInput.value = item.roll;
-                executeSearch(item.roll);
-            });
-            quickDemoPills.appendChild(btn);
-        });
+        var stats = (typeof BTEBStorage !== 'undefined') ? BTEBStorage.getTotalStats() : { totalStudents: 0 };
+        var pillsContainer = document.getElementById('demoPillsContainer');
+
+        if (stats.totalStudents > 0) {
+            var infoBadge = document.createElement('div');
+            infoBadge.className = 'database-live-badge';
+            infoBadge.style.cssText = 'background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; margin-top: 4px;';
+            infoBadge.innerHTML = '<span>🟢</span> <span>লাইভ ডাটাবেস: <strong>' + stats.totalStudents.toLocaleString() + '</strong> জন শিক্ষার্থীর বোর্ড রেজাল্ট সক্রিয় আছে</span>';
+            quickDemoPills.appendChild(infoBadge);
+            if (pillsContainer) pillsContainer.style.display = 'block';
+        } else {
+            if (pillsContainer) pillsContainer.style.display = 'none';
+        }
     }
 
     /**
      * High-Performance Instant Search Engine with O(1) Lookup & Skeleton Loading
      */
-    function executeSearch(overrideRoll) {
+    async function executeSearch(overrideRoll) {
         if (!isServerOn) {
             alert('রেজাল্ট সার্ভার বর্তমানে বন্ধ আছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।');
             return;
@@ -237,10 +245,6 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        if (typeof BTEBStorage !== 'undefined') {
-            currentRawData = BTEBStorage.getCombinedRawText();
-        }
-
         // Show smooth skeleton shimmer loader
         if (emptyState) emptyState.classList.add('hidden');
         if (resultContainer) resultContainer.classList.add('hidden');
@@ -249,26 +253,45 @@ document.addEventListener('DOMContentLoaded', function () {
         searchBtn.disabled = true;
         searchBtn.innerHTML = '<span class="spinner"></span> অনুসন্ধান চলছে...';
 
-        // Perform instant O(1) Lookup
-        var lookupData = BTEBParser.instantLookup(currentRawData, roll);
+        var t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
 
-        // Smooth 200ms frame transition for butter-smooth UX
+        // 1. Check IndexedDB / In-Memory Storage First
+        var student = null;
+        if (typeof BTEBStorage !== 'undefined') {
+            student = BTEBStorage.getStudent(roll);
+            if (!student && BTEBStorage.getStudentAsync) {
+                student = await BTEBStorage.getStudentAsync(roll);
+            }
+        }
+
+        // 2. Fallback to BTEBParser in-memory index
+        if (!student && typeof BTEBParser !== 'undefined') {
+            var lookup = BTEBParser.instantLookup('', roll, selectedSemester);
+            if (lookup && lookup.student) {
+                student = lookup.student;
+            }
+        }
+
+        var t1 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+        var elapsedMs = parseFloat((t1 - t0).toFixed(3));
+
+        // Smooth transition
         setTimeout(function () {
             if (skeletonLoader) skeletonLoader.classList.add('hidden');
             searchBtn.disabled = false;
             searchBtn.innerHTML = '🔍 রেজাল্ট দেখুন';
 
-            if (!lookupData || !lookupData.student) {
+            if (!student) {
                 renderNotFound(roll);
             } else {
-                renderResultCard(lookupData.student, selectedRegulation, selectedSemester, lookupData.elapsedMs);
+                renderResultCard(student, selectedRegulation, selectedSemester, elapsedMs);
                 
                 // If passed, trigger celebration confetti!
-                if (lookupData.student.status === 'Passed') {
+                if (student.status === 'Passed') {
                     launchCelebrationConfetti();
                 }
             }
-        }, 180);
+        }, 120);
     }
 
     /**
@@ -492,18 +515,13 @@ document.addEventListener('DOMContentLoaded', function () {
             '  </p>' +
             '  <div class="not-found-actions">' +
             '    <button type="button" class="btn btn-primary" id="retrySearchBtn">পুনরায় চেষ্টা করুন</button>' +
-            '    <button type="button" class="btn btn-outline" id="tryDemoRollsBtn">ডেমো রোল দিয়ে দেখুন</button>' +
+            '    <a href="admin.html" class="btn btn-outline" style="text-decoration:none;">অ্যাডমিন প্যানেলে যান</a>' +
             '  </div>' +
             '</div>';
 
         document.getElementById('retrySearchBtn').addEventListener('click', function () {
             rollInput.focus();
             rollInput.select();
-        });
-
-        document.getElementById('tryDemoRollsBtn').addEventListener('click', function () {
-            rollInput.value = '100001';
-            executeSearch('100001');
         });
 
         resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });

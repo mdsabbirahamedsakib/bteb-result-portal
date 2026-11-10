@@ -372,15 +372,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ─── Delete All Sheets ───
     if (deleteAllBtn) {
-        deleteAllBtn.addEventListener('click', function () {
+        deleteAllBtn.addEventListener('click', async function () {
             var sheetCount = BTEBStorage.getAllSheets().length;
             if (sheetCount === 0) {
                 showToast('ℹ️ মুছে ফেলার মতো কোনো সেভ করা শীট নেই।', 'info');
                 return;
             }
-            if (confirm('⚠️ সতর্কতা: সকল সেভ করা রেজাল্ট শীট (' + sheetCount + 'টি) স্থায়ীভাবে মুছে যাবে। আপনি কি নিশ্চিত?')) {
-                BTEBStorage.deleteAllSheets();
-                showToast('🗑️ সকল রেজাল্ট শীট মুছে ফেলা হয়েছে।', 'warning');
+            if (confirm('⚠️ সতর্কতা: সকল সেভ করা রেজাল্ট শীট (' + sheetCount + 'টি) এবং ডাটাবেসের সমস্ত স্টুডেন্ট রেজাল্ট স্থায়ীভাবে মুছে যাবে। আপনি কি নিশ্চিত?')) {
+                await BTEBStorage.deleteAllSheets();
+                showToast('🗑️ সকল রেজাল্ট শীট ও ডেটাবেস সম্পূর্ণ খালি করা হয়েছে।', 'warning');
                 renderGlobalStats();
                 renderSavedSheets();
             }
@@ -500,10 +500,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         var deleteBtns = savedSheetsContainer.querySelectorAll('.btn-sheet-delete');
         for (var j = 0; j < deleteBtns.length; j++) {
-            deleteBtns[j].addEventListener('click', function () {
+            deleteBtns[j].addEventListener('click', async function () {
                 var sheetId = this.getAttribute('data-sheet-id');
                 if (confirm('এই রেজাল্ট শীটটি মুছে ফেলতে চান?')) {
-                    BTEBStorage.deleteSheet(sheetId);
+                    await BTEBStorage.deleteSheet(sheetId);
                     showToast('🗑️ শীটটি মুছে ফেলা হয়েছে।', 'warning');
                     renderGlobalStats();
                     renderSavedSheets();
@@ -1410,8 +1410,13 @@ window.handlePdfFile = async function(file) {
             pageStatus.textContent = '✅ মোট ' + extractResult.totalPages.toLocaleString() + ' পৃষ্ঠা সফলভাবে স্ক্যান হয়েছে!';
         }
 
-        // Parse extracted text with BTEBParser
-        var parsedStudents = BTEBParser.parseAll(extractResult.text);
+        // Selected upload metadata
+        var sem = document.getElementById('pdfSemester') ? document.getElementById('pdfSemester').value : '5';
+        var reg = document.getElementById('pdfRegulation') ? document.getElementById('pdfRegulation').value : '2022';
+        var year = document.getElementById('pdfExamYear') ? document.getElementById('pdfExamYear').value : '2024';
+
+        // Parse extracted text with BTEBParser passing semester
+        var parsedStudents = BTEBParser.parseAll(extractResult.text, sem);
 
         if (parsedStudents.length === 0) {
             showToast('⚠️ পিডিএফ থেকে কোনো রোল নম্বর ডিটেক্ট করা যায়নি! ফাইল ফরম্যাট চেক করুন।', 'warning');
@@ -1422,21 +1427,32 @@ window.handlePdfFile = async function(file) {
         var referredCount = parsedStudents.filter(function(s){ return s.status === 'Referred'; }).length;
         var droppedCount = parsedStudents.filter(function(s){ return s.status === 'Dropped Out'; }).length;
 
-        // Auto Save to BTEBStorage
-        var sem = document.getElementById('pdfSemester') ? document.getElementById('pdfSemester').value : '5';
-        var reg = document.getElementById('pdfRegulation') ? document.getElementById('pdfRegulation').value : '2022';
-        var year = document.getElementById('pdfExamYear') ? document.getElementById('pdfExamYear').value : '2024';
-
-        BTEBStorage.saveSheet({
-            semester: sem,
-            regulation: reg,
-            examYear: year,
-            rawText: extractResult.text,
-            studentCount: parsedStudents.length,
-            passedCount: passedCount,
-            referredCount: referredCount,
-            droppedCount: droppedCount
-        });
+        // Auto Save to BTEBStorage using IndexedDB (no quota errors!)
+        if (BTEBStorage.saveSheetAsync) {
+            await BTEBStorage.saveSheetAsync({
+                semester: sem,
+                regulation: reg,
+                examYear: year,
+                rawText: extractResult.text,
+                fileName: file.name,
+                studentCount: parsedStudents.length,
+                passedCount: passedCount,
+                referredCount: referredCount,
+                droppedCount: droppedCount,
+                students: parsedStudents
+            });
+        } else {
+            BTEBStorage.saveSheet({
+                semester: sem,
+                regulation: reg,
+                examYear: year,
+                rawText: extractResult.text,
+                studentCount: parsedStudents.length,
+                passedCount: passedCount,
+                referredCount: referredCount,
+                droppedCount: droppedCount
+            });
+        }
 
         // Update Stats Grid
         if (statsGrid) statsGrid.classList.remove('hidden');
@@ -1452,17 +1468,87 @@ window.handlePdfFile = async function(file) {
         if (cntDropped) cntDropped.textContent = droppedCount.toLocaleString();
         if (scanTime) scanTime.textContent = extractResult.elapsedSeconds + 's (' + extractResult.totalPages + 'p)';
 
-        // Also update text area & render lists
-        var bulkTa = document.getElementById('bulkResultInput');
-        if (bulkTa) {
-            bulkTa.value = extractResult.text;
-            updatePreviewStats();
+        // Populate Instant Verification & Preview List
+        var previewContainer = document.getElementById('pdfParsedPreviewContainer');
+        var sampleList = document.getElementById('pdfSampleRollsList');
+        var testInput = document.getElementById('pdfTestRollInput');
+        var testBtn = document.getElementById('pdfTestRollBtn');
+        var testOut = document.getElementById('pdfTestRollOutput');
+
+        if (previewContainer) previewContainer.classList.remove('hidden');
+
+        if (sampleList) {
+            var sampleHtml = '<table style="width:100%;border-collapse:collapse;text-align:left;">';
+            sampleHtml += '<tr style="border-bottom:1px solid var(--border-color);background:rgba(0,0,0,0.03);font-weight:600;"><th style="padding:6px 10px;">রোল নং</th><th style="padding:6px 10px;">ফলাফল</th><th style="padding:6px 10px;">জিপিএ / বিষয়</th></tr>';
+            
+            var sampleCount = Math.min(10, parsedStudents.length);
+            for (var k = 0; k < sampleCount; k++) {
+                var st = parsedStudents[k];
+                var badgeBg = st.status === 'Passed' ? 'rgba(16,185,129,0.15)' : (st.status === 'Referred' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)');
+                var badgeColor = st.status === 'Passed' ? '#10b981' : (st.status === 'Referred' ? '#f59e0b' : '#ef4444');
+                
+                var detailText = '';
+                if (st.status === 'Passed') {
+                    var gpaList = Object.keys(st.semesters).map(function(s){ return 'Sem ' + s + ': ' + st.semesters[s].value; }).join(', ');
+                    detailText = gpaList || 'উত্তীর্ণ';
+                } else if (st.status === 'Referred') {
+                    detailText = st.referredSubjects.map(function(sub){ return sub.raw || sub.code; }).join(', ');
+                } else {
+                    detailText = 'সেমিস্টার ড্রপ / ফেইল';
+                }
+
+                sampleHtml += '<tr style="border-bottom:1px solid var(--border-color);">';
+                sampleHtml += '<td style="padding:6px 10px;font-family:monospace;font-weight:600;">' + st.roll + '</td>';
+                sampleHtml += '<td style="padding:6px 10px;"><span style="background:' + badgeBg + ';color:' + badgeColor + ';padding:2px 8px;border-radius:10px;font-size:12px;font-weight:500;">' + st.statusBangla + '</span></td>';
+                sampleHtml += '<td style="padding:6px 10px;color:var(--text-muted);">' + detailText + '</td>';
+                sampleHtml += '</tr>';
+            }
+            sampleHtml += '</table>';
+            sampleList.innerHTML = sampleHtml;
+        }
+
+        // Instant Verification Test Handler
+        if (testBtn && testInput && testOut) {
+            testBtn.onclick = function() {
+                var queryRoll = BTEBParser.normalizeDigits(testInput.value.trim());
+                if (!queryRoll) {
+                    testOut.classList.remove('hidden');
+                    testOut.style.background = 'rgba(239,68,68,0.1)';
+                    testOut.style.color = '#ef4444';
+                    testOut.textContent = 'অনুগ্রহ করে টেস্ট করার জন্য একটি রোল নম্বর লিখুন।';
+                    return;
+                }
+
+                var found = BTEBStorage.getStudent(queryRoll);
+                testOut.classList.remove('hidden');
+                if (found) {
+                    var statusColor = found.status === 'Passed' ? '#10b981' : (found.status === 'Referred' ? '#f59e0b' : '#ef4444');
+                    var statusBg = found.status === 'Passed' ? 'rgba(16,185,129,0.1)' : (found.status === 'Referred' ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)');
+                    testOut.style.background = statusBg;
+                    testOut.style.border = '1px solid ' + statusColor;
+                    testOut.style.color = statusColor;
+
+                    var gpaInfo = '';
+                    if (found.status === 'Passed') {
+                        gpaInfo = ' | জিপিএ: ' + Object.keys(found.semesters).map(function(s){ return 'সেমিস্টার ' + s + ': ' + found.semesters[s].value; }).join(', ');
+                    } else if (found.status === 'Referred') {
+                        gpaInfo = ' | রেফার্ড বিষয়: ' + found.referredSubjects.map(function(s){ return s.raw || s.code; }).join(', ');
+                    }
+
+                    testOut.innerHTML = '<strong>✓ রেজাল্ট পাওয়া গেছে!</strong> রোল: <strong>' + found.roll + '</strong> | স্ট্যাটাস: <strong>' + found.statusBangla + '</strong>' + gpaInfo + ' <br><a href="index.html" target="_blank" style="color:' + statusColor + ';text-decoration:underline;margin-top:4px;display:inline-block;">👉 স্টুডেন্ট পেজে সম্পূর্ণ মার্কশিট কার্ড দেখুন ➔</a>';
+                } else {
+                    testOut.style.background = 'rgba(239,68,68,0.1)';
+                    testOut.style.border = '1px solid #ef4444';
+                    testOut.style.color = '#ef4444';
+                    testOut.textContent = '✕ রোল #' + queryRoll + ' এই পিডিএফ বা ডেটাবেসে পাওয়া যায়নি।';
+                }
+            };
         }
 
         renderSavedSheets();
         renderGlobalStats();
 
-        showToast('🎉 অভিনন্দন! ' + parsedStudents.length.toLocaleString() + 'টি রোল নম্বর পিডিএফ থেকে সফলভাবে পার্স ও সেভ হয়েছে!', 'success');
+        showToast('🎉 অভিনন্দন! ' + parsedStudents.length.toLocaleString() + 'টি রোল নম্বর পিডিএফ থেকে সফলভাবে পার্স ও ডেটাবেসে সেভ হয়েছে!', 'success');
 
     } catch (err) {
         console.error('PDF parsing error:', err);
