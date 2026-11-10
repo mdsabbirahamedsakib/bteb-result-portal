@@ -187,12 +187,15 @@ document.addEventListener('DOMContentLoaded', function () {
                         progressSpeedText.textContent = 'মোট সময়: ' + res.elapsedMs + 'ms';
                     }
 
-                    // Save to BTEBStorage & Database
+                    // Save to BTEBStorage & Database with priority 5 (pasted)
                     await BTEBStorage.saveSheetAsync({
+                        fileName: 'কপি-পেস্ট রেজাল্ট শিট (' + (semesterSelect && semesterSelect.selectedIndex >= 0 ? semesterSelect.options[semesterSelect.selectedIndex].text : 'সেমিস্টার ' + selectedSem) + ')',
                         semester: selectedSem,
                         regulation: regulationSelect.value,
                         examYear: examYearInput.value,
                         rawText: rawText,
+                        source: 'pasted',
+                        priority: 5,
                         studentCount: res.total,
                         passedCount: res.passedCount,
                         referredCount: res.referredCount,
@@ -375,6 +378,14 @@ document.addEventListener('DOMContentLoaded', function () {
     // ─── Delete All Sheets ───
     var deleteAllSheetsMainBtn = document.getElementById('deleteAllSheetsMainBtn');
     var exportDatabaseJsonBtn = document.getElementById('exportDatabaseJsonBtn');
+    var exportDatabaseJsBtn = document.getElementById('exportDatabaseJsBtn');
+
+    if (exportDatabaseJsBtn) {
+        exportDatabaseJsBtn.addEventListener('click', function () {
+            BTEBStorage.exportResultsDatabaseJs();
+            showToast('💾 results_database.js ফাইল ডাউনলোড সম্পন্ন হয়েছে!', 'success');
+        });
+    }
 
     if (exportDatabaseJsonBtn) {
         exportDatabaseJsonBtn.addEventListener('click', function () {
@@ -1466,17 +1477,27 @@ window.handlePdfFile = async function(file) {
             return;
         }
 
+        // Tag all students with highest priority (PDF: priority 10)
+        parsedStudents.forEach(function (s) {
+            s.source = 'pdf';
+            s.sourcePriority = 10;
+            s.sources = ['pdf'];
+            s.sourceLabel = '📄 অফিসিয়াল PDF থেকে ভেরিফাইড (সর্বোচ্চ অগ্রাধিকারপ্রাপ্ত)';
+        });
+
         var passedCount = parsedStudents.filter(function(s){ return s.status === 'Passed'; }).length;
         var referredCount = parsedStudents.filter(function(s){ return s.status === 'Referred'; }).length;
         var droppedCount = parsedStudents.filter(function(s){ return s.status === 'Dropped Out'; }).length;
 
-        // Store last scanned PDF data for explicit Save confirmation
+        // Store last scanned PDF data with highest priority 10
         var lastScannedPdfData = {
             semester: sem,
             regulation: reg,
             examYear: year,
             rawText: extractResult.text,
             fileName: file.name,
+            source: 'pdf',
+            priority: 10,
             studentCount: parsedStudents.length,
             passedCount: passedCount,
             referredCount: referredCount,

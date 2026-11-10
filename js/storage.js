@@ -31,6 +31,111 @@ const BTEBStorage = (function () {
     const cachedStudentsMap = new Map();
     let dbInstance = null;
 
+    /**
+     * Cross-Tab Realtime Synchronization via BroadcastChannel
+     */
+    let syncChannel = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+        try {
+            syncChannel = new BroadcastChannel('bteb_portal_sync_channel');
+            syncChannel.onmessage = function (ev) {
+                if (ev.data && (ev.data.type === 'FULL_SYNC' || ev.data.type === 'SYNC_STUDENT')) {
+                    initDB();
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('bteb-storage-updated', { detail: ev.data }));
+                    }
+                }
+            };
+        } catch (e) {}
+    }
+
+    if (typeof window !== 'undefined') {
+        window.addEventListener('storage', function (e) {
+            if (e.key === KEYS.STUDENTS_COMPACT || e.key === KEYS.SHEETS_META) {
+                initDB();
+            }
+        });
+    }
+
+    /**
+     * Priority-Aware Student Record Merger
+     * Priority Hierarchy:
+     * - PDF source: Priority 10 (Highest priority / সবচেয়ে বেশি গুরুত্ব)
+     * - Pasted text: Priority 5 (সাধারণ গুরুত্ব)
+     * - Seed / Pre-bundled: Priority 1
+     *
+     * Inviolable Rules:
+     * 1. If the same semester exists in both, the HIGHER PRIORITY (PDF) source WINS completely!
+     * 2. Non-conflicting semesters from either source are MERGED and preserved!
+     * 3. Overall status and referred subjects are determined by the dominant source (PDF takes precedence).
+     * 4. Source badge clearly reflects whether data is verified from official PDF, pasted sheet, or merged.
+     */
+    function mergeStudentRecords(existing, incoming) {
+        if (!existing) return incoming;
+        if (!incoming) return existing;
+
+        var existingPri = existing.sourcePriority || (existing.source === 'pdf' ? 10 : (existing.source === 'pasted' ? 5 : 1));
+        var incomingPri = incoming.sourcePriority || (incoming.source === 'pdf' ? 10 : (incoming.source === 'pasted' ? 5 : 1));
+
+        var dominant = incomingPri >= existingPri ? incoming : existing;
+        var subordinate = incomingPri >= existingPri ? existing : incoming;
+
+        // Merge semesters
+        var mergedSemesters = {};
+        if (subordinate.semesters) {
+            for (var sem in subordinate.semesters) {
+                if (subordinate.semesters.hasOwnProperty(sem)) {
+                    mergedSemesters[sem] = Object.assign({}, subordinate.semesters[sem]);
+                }
+            }
+        }
+        if (dominant.semesters) {
+            for (var sem in dominant.semesters) {
+                if (dominant.semesters.hasOwnProperty(sem)) {
+                    mergedSemesters[sem] = Object.assign({}, dominant.semesters[sem]);
+                }
+            }
+        }
+
+        // Merge sources list
+        var sourcesSet = new Set();
+        if (Array.isArray(existing.sources)) existing.sources.forEach(function (s) { sourcesSet.add(s); });
+        else if (existing.source) sourcesSet.add(existing.source);
+        if (Array.isArray(incoming.sources)) incoming.sources.forEach(function (s) { sourcesSet.add(s); });
+        else if (incoming.source) sourcesSet.add(incoming.source);
+        var sourcesArr = Array.from(sourcesSet);
+
+        var hasPdf = sourcesArr.indexOf('pdf') !== -1;
+        var hasPasted = sourcesArr.indexOf('pasted') !== -1;
+
+        var sourceLabel = '';
+        if (hasPdf && hasPasted) {
+            sourceLabel = '📄 অফিসিয়াল PDF ও রেজাল্ট শিট (PDF অগ্রাধিকারপ্রাপ্ত)';
+        } else if (hasPdf) {
+            sourceLabel = '📄 অফিসিয়াল PDF থেকে ভেরিফাইড (সর্বোচ্চ অগ্রাধিকারপ্রাপ্ত)';
+        } else {
+            sourceLabel = '📋 কপি-পেস্ট রেজাল্ট শিট';
+        }
+
+        return {
+            roll: dominant.roll,
+            status: dominant.status,
+            statusBangla: dominant.statusBangla,
+            statusType: dominant.statusType,
+            latestSemester: dominant.latestSemester || subordinate.latestSemester || 5,
+            regulation: dominant.regulation || subordinate.regulation || '2022',
+            examYear: dominant.examYear || subordinate.examYear || '2024',
+            semesters: mergedSemesters,
+            referredSubjects: dominant.referredSubjects || [],
+            sheetId: dominant.sheetId || subordinate.sheetId,
+            source: hasPdf ? 'pdf' : 'pasted',
+            sourcePriority: hasPdf ? 10 : 5,
+            sources: sourcesArr,
+            sourceLabel: sourceLabel,
+            updatedAt: new Date().toISOString()
+        };
+    }
+
     // ─── Default Admin Credentials ───
     const DEFAULT_AUTH = {
         username: 'sabbir12',
@@ -189,6 +294,7 @@ const BTEBStorage = (function () {
      * - In-memory Map (0ms)
      * - Compact LocalStorage (<300 KB, guaranteed cross-tab/file:/// persistence)
      * - IndexedDB (bulk storage)
+     * - Priority-aware merger (PDF takes precedence over copy-paste, all data unified)
      */
     async function saveSheetAsync(sheetData) {
         var semester = sheetData.semester || '5';
@@ -196,6 +302,9 @@ const BTEBStorage = (function () {
         var examYear = sheetData.examYear || new Date().getFullYear().toString();
         var rawText = sheetData.rawText || '';
         var fileName = sheetData.fileName || ('BTEB_Result_' + semester + 'th_Sem_' + Date.now() + '.pdf');
+
+        var source = sheetData.source || ((fileName && fileName.toLowerCase().endsWith('.pdf')) ? 'pdf' : 'pasted');
+        var priority = sheetData.priority || (source === 'pdf' ? 10 : 5);
 
         var students = sheetData.students;
         if (!students || !Array.isArray(students)) {
@@ -214,6 +323,8 @@ const BTEBStorage = (function () {
             semester: semester,
             regulation: regulation,
             examYear: examYear,
+            source: source,
+            priority: priority,
             studentCount: students.length,
             passedCount: passedCount,
             referredCount: referredCount,
@@ -221,7 +332,7 @@ const BTEBStorage = (function () {
             savedAt: new Date().toISOString()
         };
 
-        // 1. In-memory Map update
+        // 1. In-memory Map & Compact LocalStorage update with Priority Merge
         var compactDb = _read(KEYS.STUDENTS_COMPACT) || {};
 
         for (var i = 0; i < students.length; i++) {
@@ -229,13 +340,22 @@ const BTEBStorage = (function () {
             st.sheetId = sheetId;
             st.regulation = regulation;
             st.examYear = examYear;
+            st.source = source;
+            st.sourcePriority = priority;
+            st.sources = [source];
             
             var rStr = String(st.roll).trim();
-            cachedStudentsMap.set(rStr, st);
-            compactDb[rStr] = st;
+            var existing = cachedStudentsMap.get(rStr) || compactDb[rStr] || (typeof BTEBResultsDatabase !== 'undefined' ? BTEBResultsDatabase.getStudent(rStr) : null);
+            var merged = mergeStudentRecords(existing, st);
+
+            cachedStudentsMap.set(rStr, merged);
+            compactDb[rStr] = merged;
 
             if (typeof BTEBParser !== 'undefined' && BTEBParser.setStudent) {
-                BTEBParser.setStudent(st);
+                BTEBParser.setStudent(merged);
+            }
+            if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.mergeStudent) {
+                BTEBResultsDatabase.mergeStudent(merged);
             }
         }
 
@@ -256,14 +376,22 @@ const BTEBStorage = (function () {
                 tx.objectStore('rawTexts').put({ sheetId: sheetId, text: rawText });
                 var studentStore = tx.objectStore('students');
                 for (var j = 0; j < students.length; j++) {
-                    studentStore.put(students[j]);
+                    var curRoll = String(students[j].roll).trim();
+                    var finalStudentObj = compactDb[curRoll] || students[j];
+                    studentStore.put(finalStudentObj);
                 }
             } catch (err) {
                 console.warn('[BTEBStorage] IndexedDB async save warning:', err);
             }
         }
 
-        // Notify UI and open tabs
+        // Notify UI and open tabs via CustomEvent and BroadcastChannel
+        if (syncChannel) {
+            try {
+                syncChannel.postMessage({ type: 'FULL_SYNC', sheetId: sheetId });
+            } catch (e) {}
+        }
+
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('bteb-storage-updated', { detail: { sheetId: sheetId } }));
         }
@@ -347,59 +475,80 @@ const BTEBStorage = (function () {
     }
 
     /**
-     * Instant Student Retrieval (Memory -> Compact LocalStorage -> IndexedDB)
+     * Unified Student Retrieval with Strict PDF Priority Guarantee
+     * 1. Consolidates records across In-Memory Cache, Compact Storage, and Pre-bundled Database.
+     * 2. Any data provided (via PDF upload OR Copy-Pasted text) is recognized as ONE single data pool.
+     * 3. If conflicting or duplicate records exist, PDF data is given HIGHEST PRIORITY (PDF > Paste > Seed).
      */
     function getStudent(roll) {
         var cleanRoll = (typeof BTEBParser !== 'undefined') ? BTEBParser.normalizeDigits(roll) : String(roll).trim();
         if (!cleanRoll) return null;
 
-        // 1. Memory check (0ms)
+        var candidates = [];
+
+        // 1. In-memory check
         if (cachedStudentsMap.has(cleanRoll)) {
-            return cachedStudentsMap.get(cleanRoll);
+            candidates.push(cachedStudentsMap.get(cleanRoll));
         }
 
-        // 2. Pre-bundled Project Database check
+        // 2. Compact LocalStorage check
+        var compactDb = _read(KEYS.STUDENTS_COMPACT);
+        if (compactDb && compactDb[cleanRoll]) {
+            candidates.push(compactDb[cleanRoll]);
+        }
+
+        // 3. Pre-bundled Database check
         if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getStudent) {
             var bundled = BTEBResultsDatabase.getStudent(cleanRoll);
             if (bundled) {
-                cachedStudentsMap.set(cleanRoll, bundled);
-                return bundled;
+                candidates.push(bundled);
             }
         }
 
-        // 3. Compact LocalStorage check
-        var compactDb = _read(KEYS.STUDENTS_COMPACT);
-        if (compactDb && compactDb[cleanRoll]) {
-            var st = compactDb[cleanRoll];
-            cachedStudentsMap.set(cleanRoll, st);
-            return st;
+        if (candidates.length === 0) return null;
+
+        // Sort ascending by priority (1 -> 5 -> 10) so highest priority (PDF) merges on top
+        candidates.sort(function (a, b) {
+            var pa = a.sourcePriority || (a.source === 'pdf' ? 10 : (a.source === 'pasted' ? 5 : 1));
+            var pb = b.sourcePriority || (b.source === 'pdf' ? 10 : (b.source === 'pasted' ? 5 : 1));
+            return pa - pb;
+        });
+
+        var merged = candidates[0];
+        for (var i = 1; i < candidates.length; i++) {
+            merged = mergeStudentRecords(merged, candidates[i]);
         }
 
-        return null;
+        cachedStudentsMap.set(cleanRoll, merged);
+        return merged;
     }
 
     async function getStudentAsync(roll) {
         var st = getStudent(roll);
-        if (st) return st;
-
         var cleanRoll = (typeof BTEBParser !== 'undefined') ? BTEBParser.normalizeDigits(roll) : String(roll).trim();
+        if (!cleanRoll) return st;
+
         var db = await getDB();
         if (db) {
             try {
-                return new Promise(function (resolve) {
+                var idbStudent = await new Promise(function (resolve) {
                     var tx = db.transaction(['students'], 'readonly');
                     var store = tx.objectStore('students');
                     var req = store.get(cleanRoll);
                     req.onsuccess = function () {
-                        if (req.result) {
-                            cachedStudentsMap.set(cleanRoll, req.result);
-                            resolve(req.result);
-                        } else {
-                            resolve(null);
-                        }
+                        resolve(req.result || null);
                     };
                     req.onerror = function () { resolve(null); };
                 });
+
+                if (idbStudent) {
+                    st = mergeStudentRecords(st, idbStudent);
+                    cachedStudentsMap.set(cleanRoll, st);
+                }
+            } catch (e) {}
+        }
+        return st;
+    }
             } catch (e) {
                 return null;
             }
@@ -617,6 +766,25 @@ const BTEBStorage = (function () {
         _write(KEYS.MATERIALS, materials);
     }
 
+    function exportResultsDatabaseJs() {
+        if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.exportAsJsFile) {
+            BTEBResultsDatabase.exportAsJsFile();
+            return;
+        }
+        var compactDb = _read(KEYS.STUDENTS_COMPACT) || {};
+        var content = 'const BTEBResultsDatabase = (function () {\n    \'use strict\';\n    const database = '
+            + JSON.stringify(compactDb, null, 4) + ';\n    return {\n        getStudent: function (r) { return database[r] || null; },\n        getCount: function () { return Object.keys(database).length; }\n    };\n})();\n';
+        var blob = new Blob([content], { type: 'application/javascript;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'results_database.js';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
     return {
         initDB: initDB,
         getAllSheets: getAllSheets,
@@ -628,6 +796,8 @@ const BTEBStorage = (function () {
         getStudentAsync: getStudentAsync,
         getTotalStats: getTotalStats,
         exportDatabaseAsJSON: exportDatabaseAsJSON,
+        exportResultsDatabaseJs: exportResultsDatabaseJs,
+        mergeStudentRecords: mergeStudentRecords,
         addOrUpdateStudent: addOrUpdateStudent,
         deleteStudent: deleteStudent,
         findStudentInSheets: findStudentInSheets,

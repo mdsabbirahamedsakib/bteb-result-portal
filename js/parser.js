@@ -487,6 +487,135 @@ const BTEBParser = (function () {
         }
     }
 
+    /**
+     * Non-blocking chunk processor for processing huge bulk texts (Copy-Pasted from PDF or Sheets)
+     * Never freezes the browser thread.
+     */
+    function parseInChunksAsync(rawText, onProgress, onComplete, defaultSemester, chunkSize) {
+        var t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+        var defSem = parseInt(defaultSemester, 10) || 5;
+        var batchSize = parseInt(chunkSize, 10) || 300;
+
+        // Parse all candidates from raw text
+        var allStudents = parseAll(rawText, defSem);
+        var total = allStudents.length;
+
+        // Mark source as pasted with standard priority 5
+        for (var i = 0; i < total; i++) {
+            allStudents[i].source = 'pasted';
+            allStudents[i].sourcePriority = 5;
+            allStudents[i].sourceLabel = '📋 কপি-পেস্ট রেজাল্ট শিট';
+            if (!allStudents[i].sources) {
+                allStudents[i].sources = ['pasted'];
+            }
+        }
+
+        var currentIndex = 0;
+        var passedCount = 0;
+        var referredCount = 0;
+        var droppedCount = 0;
+
+        function processNextBatch() {
+            var batchLimit = Math.min(currentIndex + batchSize, total);
+            for (var j = currentIndex; j < batchLimit; j++) {
+                var st = allStudents[j];
+                if (st.status === 'Passed') passedCount++;
+                else if (st.status === 'Referred') referredCount++;
+                else if (st.status === 'Dropped Out') droppedCount++;
+            }
+            currentIndex = batchLimit;
+
+            var tNow = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+            var elapsedMs = Math.max(1, Math.round(tNow - t0));
+            var speed = Math.round((currentIndex / elapsedMs) * 1000);
+            var percent = total > 0 ? Math.min(100, Math.round((currentIndex / total) * 100)) : 100;
+
+            if (typeof onProgress === 'function') {
+                onProgress({
+                    percent: percent,
+                    current: currentIndex,
+                    total: total,
+                    speed: speed,
+                    elapsedMs: elapsedMs,
+                    passedCount: passedCount,
+                    referredCount: referredCount,
+                    droppedCount: droppedCount
+                });
+            }
+
+            if (currentIndex < total) {
+                if (typeof requestAnimationFrame !== 'undefined') {
+                    requestAnimationFrame(processNextBatch);
+                } else {
+                    setTimeout(processNextBatch, 0);
+                }
+            } else {
+                // Done! Build compact map for instant export
+                var optMap = {};
+                for (var k = 0; k < total; k++) {
+                    var s = allStudents[k];
+                    optMap[s.roll] = {
+                        s: s.status === 'Passed' ? 'P' : (s.status === 'Referred' ? 'R' : 'D'),
+                        g: s.semesters && s.semesters[defSem] ? s.semesters[defSem].value : null,
+                        r: (s.referredSubjects || []).map(function (sub) { return sub.raw || sub.code; })
+                    };
+                }
+
+                if (typeof onComplete === 'function') {
+                    onComplete({
+                        total: total,
+                        passedCount: passedCount,
+                        referredCount: referredCount,
+                        droppedCount: droppedCount,
+                        elapsedMs: elapsedMs,
+                        results: allStudents,
+                        optimizedData: optMap
+                    });
+                }
+            }
+        }
+
+        if (total === 0) {
+            if (typeof onComplete === 'function') {
+                onComplete({
+                    total: 0,
+                    passedCount: 0,
+                    referredCount: 0,
+                    droppedCount: 0,
+                    elapsedMs: 0,
+                    results: [],
+                    optimizedData: {}
+                });
+            }
+        } else {
+            processNextBatch();
+        }
+    }
+
+    /**
+     * Export compact / optimized JSON file for high capacity hosting
+     */
+    function exportOptimizedJSON(data, meta) {
+        meta = meta || {};
+        var payload = {
+            portal: 'BTEB Result & Education Portal',
+            version: '5.0',
+            exportedAt: new Date().toISOString(),
+            metadata: meta,
+            data: data
+        };
+        var jsonStr = JSON.stringify(payload);
+        var blob = new Blob([jsonStr], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'bteb_optimized_results_' + (meta.semester || 'all') + 'sem_' + Date.now() + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
     return {
         normalizeDigits: normalizeDigits,
         findRoll: findRoll,
@@ -498,6 +627,8 @@ const BTEBParser = (function () {
         instantLookup: instantLookup,
         clearIndex: clearIndex,
         setStudent: setStudent,
+        parseInChunksAsync: parseInChunksAsync,
+        exportOptimizedJSON: exportOptimizedJSON,
         getIndexSize: function () { return rollIndexMap.size; }
     };
 })();

@@ -198,6 +198,71 @@ const BTEBResultsDatabase = (function () {
     }
 
     /**
+     * Priority-aware merge for BTEBResultsDatabase
+     * PDF (priority 10) > Pasted (priority 5) > Pre-bundled (priority 1)
+     */
+    function mergeStudent(incoming) {
+        if (!incoming || !incoming.roll) return null;
+        var roll = String(incoming.roll).trim();
+        var existing = database[roll];
+
+        if (!existing) {
+            database[roll] = incoming;
+            return incoming;
+        }
+
+        var existingPri = existing.sourcePriority || (existing.source === 'pdf' ? 10 : (existing.source === 'pasted' ? 5 : 1));
+        var incomingPri = incoming.sourcePriority || (incoming.source === 'pdf' ? 10 : (incoming.source === 'pasted' ? 5 : 1));
+
+        var dominant = incomingPri >= existingPri ? incoming : existing;
+        var subordinate = incomingPri >= existingPri ? existing : incoming;
+
+        // Merge semesters
+        var mergedSemesters = {};
+        if (subordinate.semesters) {
+            for (var sem in subordinate.semesters) {
+                mergedSemesters[sem] = Object.assign({}, subordinate.semesters[sem]);
+            }
+        }
+        if (dominant.semesters) {
+            for (var sem in dominant.semesters) {
+                mergedSemesters[sem] = Object.assign({}, dominant.semesters[sem]);
+            }
+        }
+
+        // Sources list
+        var sourcesSet = new Set();
+        if (Array.isArray(existing.sources)) existing.sources.forEach(function (s) { sourcesSet.add(s); });
+        else if (existing.source) sourcesSet.add(existing.source);
+        if (Array.isArray(incoming.sources)) incoming.sources.forEach(function (s) { sourcesSet.add(s); });
+        else if (incoming.source) sourcesSet.add(incoming.source);
+        var sourcesArr = Array.from(sourcesSet);
+
+        var hasPdf = sourcesArr.indexOf('pdf') !== -1;
+        var hasPasted = sourcesArr.indexOf('pasted') !== -1;
+
+        var merged = {
+            roll: dominant.roll,
+            status: dominant.status,
+            statusBangla: dominant.statusBangla,
+            statusType: dominant.statusType,
+            latestSemester: dominant.latestSemester || subordinate.latestSemester || 5,
+            regulation: dominant.regulation || subordinate.regulation || '2022',
+            examYear: dominant.examYear || subordinate.examYear || '2024',
+            semesters: mergedSemesters,
+            referredSubjects: dominant.referredSubjects || [],
+            source: hasPdf ? 'pdf' : 'pasted',
+            sourcePriority: hasPdf ? 10 : 5,
+            sources: sourcesArr,
+            sourceLabel: hasPdf && hasPasted ? '📄 অফিসিয়াল PDF ও শিট মার্জড (PDF অগ্রাধিকারপ্রাপ্ত)' : (hasPdf ? '📄 অফিসিয়াল PDF থেকে ভেরিফাইড (অগ্রাধিকারপ্রাপ্ত)' : '📋 কপি-পেস্ট রেজাল্ট শিট'),
+            updatedAt: new Date().toISOString()
+        };
+
+        database[roll] = merged;
+        return merged;
+    }
+
+    /**
      * Get all rolls in database
      */
     function getAllRolls() {
@@ -218,12 +283,59 @@ const BTEBResultsDatabase = (function () {
         return database;
     }
 
+    /**
+     * Export self as downloadable results_database.js file
+     */
+    function exportAsJsFile() {
+        var content = '/**\n * BTEB Portal - Pre-bundled Results Database (results_database.js)\n'
+            + ' * Generated at: ' + new Date().toISOString() + '\n'
+            + ' * Total Records: ' + Object.keys(database).length + '\n'
+            + ' */\n\n'
+            + 'const BTEBResultsDatabase = (function () {\n'
+            + '    \'use strict\';\n\n'
+            + '    const database = ' + JSON.stringify(database, null, 4) + ';\n\n'
+            + '    function getStudent(roll) {\n'
+            + '        if (!roll) return null;\n'
+            + '        var cleanRoll = String(roll).trim().replace(/[০-৯]/g, function (d) { return \'০১২৩৪৫৬৭৮৯\'.indexOf(d); });\n'
+            + '        return database[cleanRoll] || null;\n'
+            + '    }\n\n'
+            + '    function setStudent(st) { if (st && st.roll) database[String(st.roll).trim()] = st; }\n'
+            + '    function mergeStudent(st) { return BTEBResultsDatabase.setStudent(st); }\n'
+            + '    function getAllRolls() { return Object.keys(database); }\n'
+            + '    function getCount() { return Object.keys(database).length; }\n'
+            + '    function getDatabase() { return database; }\n\n'
+            + '    return {\n'
+            + '        getStudent: getStudent,\n'
+            + '        setStudent: setStudent,\n'
+            + '        mergeStudent: mergeStudent,\n'
+            + '        getAllRolls: getAllRolls,\n'
+            + '        getCount: getCount,\n'
+            + '        getDatabase: getDatabase\n'
+            + '    };\n'
+            + '})();\n\n'
+            + 'if (typeof module !== \'undefined\' && module.exports) {\n'
+            + '    module.exports = BTEBResultsDatabase;\n'
+            + '}\n';
+
+        var blob = new Blob([content], { type: 'application/javascript;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'results_database.js';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
     return {
         getStudent: getStudent,
         setStudent: setStudent,
+        mergeStudent: mergeStudent,
         getAllRolls: getAllRolls,
         getCount: getCount,
-        getDatabase: getDatabase
+        getDatabase: getDatabase,
+        exportAsJsFile: exportAsJsFile
     };
 })();
 

@@ -279,18 +279,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
         var t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
 
-        // 1. Check Pre-bundled Project Database
+        // 1. Check Unified BTEBStorage (Memory + Compact LocalStorage + IndexedDB + Database with PDF Priority)
         var student = null;
-        if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getStudent) {
-            student = BTEBResultsDatabase.getStudent(roll);
-        }
-
-        // 2. Check BTEBStorage (In-Memory + Compact LocalStorage + IndexedDB)
-        if (!student && typeof BTEBStorage !== 'undefined') {
+        if (typeof BTEBStorage !== 'undefined') {
             student = BTEBStorage.getStudent(roll);
             if (!student && BTEBStorage.getStudentAsync) {
                 student = await BTEBStorage.getStudentAsync(roll);
             }
+        }
+
+        // 2. Check Pre-bundled Project Database
+        if (!student && typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getStudent) {
+            student = BTEBResultsDatabase.getStudent(roll);
         }
 
         // 3. Fallback to BTEBParser in-memory index
@@ -406,10 +406,16 @@ document.addEventListener('DOMContentLoaded', function () {
         html += '        <span class="status-value">' + statusTitle + '</span>';
         html += '      </div>';
         html += '    </div>';
-        html += '    <div class="status-right">';
+        html += '    <div class="status-right" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">';
         if (cgpaData) {
             html += '      <div class="cgpa-pill">গড় CGPA: <strong>' + cgpaData.cgpa + '</strong></div>';
         }
+        var isPdfDominant = (data.source === 'pdf' || (data.sources && data.sources.indexOf('pdf') !== -1));
+        var sourceLabel = data.sourceLabel || (isPdfDominant ? '📄 অফিসিয়াল PDF ভেরিফাইড (অগ্রাধিকারপ্রাপ্ত)' : '📋 কপি-পেস্ট শিট রেজাল্ট');
+        var sourceStyle = isPdfDominant 
+            ? 'background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.35);font-size:0.75rem;padding:3px 8px;border-radius:12px;font-weight:600;'
+            : 'background:rgba(59,130,246,0.15);color:#3b82f6;border:1px solid rgba(59,130,246,0.35);font-size:0.75rem;padding:3px 8px;border-radius:12px;font-weight:600;';
+        html += '      <span style="' + sourceStyle + '">' + sourceLabel + '</span>';
         html += '      <span class="reg-pill">প্রবিধান: ' + regulation + '</span>';
         html += '    </div>';
         html += '  </div>';
