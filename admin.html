@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - BTEB Result & Education Portal</title>
+    <meta name="description" content="BTEB Result Portal এর অ্যাডমিন ড্যাশবোর্ড - রেজাল্ট আপলোড, বই-সাজেশন ও সাইট সেটিংস কন্ট্রোল">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Mozilla PDF.js for 100% Client-Side PDF Auto-Parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+
+    <!-- ================= Top Navbar ================= -->
+    <header class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-brand">
+                <div class="logo-badge">🎓</div>
+                <div class="brand-text">
+                    <h1>BTEB Education Portal</h1>
+                    <p>বাংলাদেশ কারিগরি শিক্ষা বোর্ড</p>
+                </div>
+            </a>
+
+            <nav>
+                <ul class="nav-menu">
+                    <li>
+                        <a href="index.html" class="nav-link">
+                            <span>🎓 রেজাল্ট (Result)</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="materials.html?cat=book" class="nav-link">
+                            <span>📚 বই ও সিলেবাস</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="materials.html?cat=note" class="nav-link">
+                            <span>📝 হ্যান্ডনোটস</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="materials.html?cat=suggestion" class="nav-link">
+                            <span>🎯 সাজেশন</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="nav-actions">
+                <button type="button" class="theme-toggle-btn no-print" id="themeToggleBtn" title="ডার্ক / লাইট মোড পরিবর্তন করুন">
+                    <span id="themeIcon">🌙</span>
+                </button>
+                <span class="admin-user-pill" id="adminUserBadge">👤 sabbir12</span>
+                <button type="button" class="btn btn-outline" style="padding:5px 12px;font-size:0.8rem;border-color:var(--primary);color:var(--primary);" onclick="switchAdminTab('tab-security')" title="অ্যাডমিন পাসওয়ার্ড ও ইউজারনেম পরিবর্তন করুন">
+                    🔑 পাসওয়ার্ড পরিবর্তন
+                </button>
+                <button type="button" class="btn-logout" id="adminLogoutBtn" onclick="handleAdminLogout()" title="লগআউট করুন">
+                    🚪 লগআউট
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ================= Step 7: Secure Admin Login Modal / Overlay ================= -->
+    <div class="admin-auth-overlay hidden" id="adminAuthOverlay">
+        <div class="admin-auth-card">
+            <div class="admin-auth-header">
+                <div class="admin-auth-icon">🔐</div>
+                <h3 class="admin-auth-title">অ্যাডমিন লগইন (Admin Login)</h3>
+                <p class="admin-auth-desc">
+                    রেজাল্ট আপলোড, এডিট ও সাইট কন্ট্রোলে প্রবেশ করতে আপনার অ্যাডমিন ক্রেডেনশিয়াল দিন
+                </p>
+            </div>
+
+            <!-- Error Banner -->
+            <div class="admin-auth-error hidden" id="authErrorBanner">
+                <span>⚠️</span>
+                <span id="authErrorMsg">ভুল ইউজারনেম বা পাসওয়ার্ড!</span>
+            </div>
+
+            <form id="adminLoginForm" onsubmit="event.preventDefault(); handleAdminLoginSubmit();">
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label class="form-label" for="loginUsername">ইউজারনেম (Username): *</label>
+                    <input 
+                        type="text" 
+                        id="loginUsername" 
+                        class="form-input" 
+                        placeholder="যেমন: sabbir12" 
+                        autocomplete="username"
+                        required
+                    />
+                </div>
+
+                <div class="form-group" style="margin-bottom:20px;">
+                    <label class="form-label" for="loginPassword">পাসওয়ার্ড (Password): *</label>
+                    <div class="password-input-group">
+                        <input 
+                            type="password" 
+                            id="loginPassword" 
+                            class="form-input" 
+                            placeholder="যেমন: sabbiR23" 
+                            autocomplete="current-password"
+                            required
+                        />
+                        <button type="button" class="btn-toggle-eye" id="toggleLoginPassBtn" title="পাসওয়ার্ড দেখুন / লুকান" onclick="togglePasswordVisibility('loginPassword', this)">
+                            👁️
+                        </button>
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:10px;margin-bottom:14px;">
+                    <button type="submit" class="btn btn-primary" id="loginSubmitBtn" style="flex:1;padding:12px;font-size:0.95rem;">
+                        🔓 লগইন করুন (Login)
+                    </button>
+                    <button type="button" class="btn btn-outline" onclick="autoFillAndLoginAdmin()" style="padding:12px 14px;font-size:0.85rem;white-space:nowrap;border-color:#10b981;color:#10b981;" title="ডিফল্ট তথ্য দিয়ে সরাসরি লগইন">
+                        ⚡ এক-ক্লিকে লগইন
+                    </button>
+                </div>
+
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.82rem;color:var(--text-muted);">
+                    <a href="index.html" style="color:var(--primary);text-decoration:none;">&larr; স্টুডেন্ট পেজে ফিরে যান</a>
+                    <span style="font-size:0.75rem;color:var(--text-muted);">Default: sabbir12 / sabbiR23</span>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================= Admin Dashboard Container (with 60fps Entrance Animation) ================= -->
+    <main class="container animate-slide-up">
+
+        <!-- Breadcrumb -->
+        <div class="admin-breadcrumb">
+            <a href="index.html">🏠 হোম</a>
+            <span>›</span>
+            <span>⚙️ অ্যাডমিন প্যানেল</span>
+        </div>
+
+        <!-- Page Header -->
+        <div class="admin-page-header">
+            <h2>⚙️ অ্যাডমিন কন্ট্রোল সেন্টার (Admin Control Center)</h2>
+            <p>রেজাল্ট আপলোড, বই ও সাজেশন প্রকাশনা এবং সাইটের মেনু অন/অফ পরিচালনা করুন</p>
+        </div>
+
+        <!-- ────── Step 8: Admin Power Access Hub (এক নজরে সকল অ্যাক্সেস) ────── -->
+        <div class="admin-access-hub" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;margin-bottom:20px;">
+            <div onclick="switchAdminTab('tab-results')" class="hub-card" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:14px;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.1);" onmouseover="this.style.borderColor='var(--primary)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border-color)';this.style.transform='none'">
+                <div style="font-size:1.5rem;margin-bottom:6px;">📊</div>
+                <div style="font-weight:700;font-size:0.9rem;color:var(--text-main);">বাল্ক ও PDF রেজাল্ট</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">৩-৪ লক্ষ টেক্সট ও সরাসরি PDF আপলোড</div>
+            </div>
+            <div onclick="switchAdminTab('tab-single-result')" class="hub-card" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:14px;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.1);" onmouseover="this.style.borderColor='var(--primary)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border-color)';this.style.transform='none'">
+                <div style="font-size:1.5rem;margin-bottom:6px;">🎯</div>
+                <div style="font-weight:700;font-size:0.9rem;color:var(--text-main);">একক রেজাল্ট পরিচালনা</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">রোল সার্চ, GPA ১-৮ এডিট ও ডিলিট</div>
+            </div>
+            <div onclick="switchAdminTab('tab-materials')" class="hub-card" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:14px;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.1);" onmouseover="this.style.borderColor='var(--primary)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border-color)';this.style.transform='none'">
+                <div style="font-size:1.5rem;margin-bottom:6px;">📚</div>
+                <div style="font-weight:700;font-size:0.9rem;color:var(--text-main);">বই ও সাজেশন</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">স্টাডি ম্যাটেরিয়াল পোস্ট ও ছবি প্রকাশ</div>
+            </div>
+            <div onclick="switchAdminTab('tab-settings')" class="hub-card" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:14px;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.1);" onmouseover="this.style.borderColor='var(--primary)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border-color)';this.style.transform='none'">
+                <div style="font-size:1.5rem;margin-bottom:6px;">⚙️</div>
+                <div style="font-weight:700;font-size:0.9rem;color:var(--text-main);">সাইট সেটিংস ও মাস্টার সুইচ</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">মেনু ও সার্ভার অন/অফ মাস্টার কন্ট্রোল</div>
+            </div>
+            <div onclick="switchAdminTab('tab-security')" class="hub-card" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:14px;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.1);" onmouseover="this.style.borderColor='var(--primary)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border-color)';this.style.transform='none'">
+                <div style="font-size:1.5rem;margin-bottom:6px;">🔐</div>
+                <div style="font-weight:700;font-size:0.9rem;color:var(--text-main);">সিকিউরিটি ও ক্রেডেনশিয়াল</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">ইউজারনেম ও পাসওয়ার্ড পরিবর্তন</div>
+            </div>
+        </div>
+
+        <!-- ────── Step 7: Main Navigation Tabs ────── -->
+        <div class="admin-tabs-nav">
+            <button type="button" class="btn btn-outline admin-main-tab active" data-tab="tab-results" onclick="switchAdminTab('tab-results')">
+                📊 রেজাল্ট আপলোড ও সার্ভার
+            </button>
+            <button type="button" class="btn btn-outline admin-main-tab" data-tab="tab-single-result" onclick="switchAdminTab('tab-single-result')">
+                🎯 একক রেজাল্ট পরিচালনা
+            </button>
+            <button type="button" class="btn btn-outline admin-main-tab" data-tab="tab-materials" onclick="switchAdminTab('tab-materials')">
+                📚 বই ও সাজেশন
+            </button>
+            <button type="button" class="btn btn-outline admin-main-tab" data-tab="tab-settings" onclick="switchAdminTab('tab-settings')">
+                ⚙️ সাইট সেটিংস
+            </button>
+            <button type="button" class="btn btn-outline admin-main-tab" data-tab="tab-security" onclick="switchAdminTab('tab-security')">
+                🔐 সিকিউরিটি ও পাসওয়ার্ড
+            </button>
+            <a href="index.html" class="btn btn-outline" style="margin-left:auto;text-decoration:none;font-size:0.85rem;">
+                🎓 স্টুডেন্ট পেজ
+            </a>
+        </div>
+
+        <!-- ================= TAB 1: RESULT UPLOAD & SERVER CONTROL ================= -->
+        <div id="tab-results" class="admin-tab-content">
+            
+            <!-- Global Stats Overview -->
+            <div class="dash-stats-grid" id="globalStatsContainer"></div>
+
+            <!-- Server Control Card -->
+            <div class="admin-section">
+                <div class="admin-section-header">
+                    <h3 class="admin-section-title">🖥️ রেজাল্ট সার্ভার কন্ট্রোল (Server Control)</h3>
+                </div>
+
+                <div class="server-control-card">
+                    <div class="server-control-left">
+                        <span class="server-control-title">রেজাল্ট সার্ভার চালু / বন্ধ</span>
+                        <span class="server-control-desc">
+                            বন্ধ (OFF) করলে শিক্ষার্থী পেজে রেজাল্টের বদলে মেইনটেন্যান্স ম্যাসেজ দেখাবে।
+                        </span>
+                    </div>
+                    <div class="toggle-wrapper">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="serverToggle" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="server-status-label status-on" id="serverStatusLabel">
+                            <span class="server-dot server-dot-on"></span>
+                            রেজাল্ট সার্ভার: <strong>চালু (ON)</strong>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="maintenance-msg-row">
+                    <div class="form-group">
+                        <label for="maintenanceMsgInput" class="form-label">কাস্টম মেইনটেন্যান্স বার্তা:</label>
+                        <input
+                            type="text"
+                            id="maintenanceMsgInput"
+                            class="form-input"
+                            value="রেজাল্ট আপলোডের কাজ চলছে, কিছুক্ষণ পর চেষ্টা করুন।"
+                            placeholder="শিক্ষার্থীদের জন্য বার্তা লিখুন..."
+                        >
+                    </div>
+                    <button type="button" class="btn btn-outline" id="saveMaintenanceMsgBtn" style="height:50px;white-space:nowrap;">
+                        💾 ম্যাসেজ সেভ
+                    </button>
+                </div>
+            </div>
+
+            <!-- ================= Step 8: Direct BTEB Result PDF Upload & Auto-Parsing Engine ================= -->
+            <div class="admin-section" id="pdfUploadSection">
+                <div class="admin-section-header">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <h3 class="admin-section-title">📄 সরাসরি BTEB রেজাল্ট PDF আপলোড ও অটো-পার্সিং (Upload BTEB Result PDF)</h3>
+                        <span class="toolbar-badge" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">
+                            ⚡ Client-Side PDF.js Engine
+                        </span>
+                    </div>
+                    <span class="nav-badge" style="background:#ef4444;color:#fff;">১০০% স্বয়ংক্রিয় ক্লায়েন্ট পার্সার</span>
+                </div>
+
+                <div class="admin-section-body">
+                    <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:14px;line-height:1.6;">
+                        বোর্ডের মূল রেজাল্ট PDF ফাইলটি সরাসরি নিচে ড্রপ করুন। কোনো সার্ভার ছাড়াই আপনার ব্রাউজার <strong>PDF.js</strong> লাইব্রেরি ব্যবহার করে হাজার হাজার পৃষ্ঠা থেকে টেক্সট ও রোল নম্বর নিজে নিজেই স্ক্যান করে রেজাল্ট সংরক্ষণ করবে:
+                    </p>
+
+                    <!-- Metadata Selector Grid for PDF -->
+                    <div class="upload-meta-grid" style="margin-bottom:16px;">
+                        <div class="form-group">
+                            <label for="pdfSemester" class="form-label">সেমিস্টার (Semester): *</label>
+                            <select id="pdfSemester" class="form-select">
+                                <option value="1">১ম সেমিস্টার (1st)</option>
+                                <option value="2">২য় সেমিস্টার (2nd)</option>
+                                <option value="3">৩য় সেমিস্টার (3rd)</option>
+                                <option value="4">৪র্থ সেমিস্টার (4th)</option>
+                                <option value="5" selected>৫ম সেমিস্টার (5th)</option>
+                                <option value="6">৬ষ্ঠ সেমিস্টার (6th)</option>
+                                <option value="7">৭ম সেমিস্টার (7th)</option>
+                                <option value="8">৮ম সেমিস্টার (8th)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="pdfRegulation" class="form-label">প্রবিধান (Regulation): *</label>
+                            <select id="pdfRegulation" class="form-select">
+                                <option value="2022" selected>প্রবিধান ২০২২</option>
+                                <option value="2016">প্রবিধান ২০১৬</option>
+                                <option value="2010">প্রবিধান ২০১০</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="pdfExamYear" class="form-label">পরীক্ষার বছর (Exam Year):</label>
+                            <input type="text" id="pdfExamYear" class="form-input" value="2024" placeholder="যেমন: 2024">
+                        </div>
+                    </div>
+
+                    <!-- PDF Drag and Drop Area -->
+                    <div class="pdf-drop-zone" id="pdfDropZone">
+                        <input type="file" id="pdfFileInput" accept="application/pdf" style="display:none;" onchange="handlePdfFileSelected(event)">
+                        <div class="pdf-drop-icon">📑</div>
+                        <h4 class="pdf-drop-title">BTEB বোর্ডের রেজাল্ট PDF ফাইল ড্রপ করুন অথবা ক্লিক করুন</h4>
+                        <p class="pdf-drop-desc">পিডিএফের হাজার হাজার পেজ স্বয়ংক্রিয়ভাবে স্ক্যান করে পাস, রেফার্ড ও ড্রপ আউটের ফলাফল আলাদা করে সেভ হবে</p>
+                        <button type="button" class="btn btn-primary" onclick="document.getElementById('pdfFileInput').click()" style="margin-top:12px;padding:8px 20px;">
+                            📁 PDF ফাইল নির্বাচন করুন (Select PDF)
+                        </button>
+                        <div id="pdfFileNameDisplay" class="pdf-file-name hidden"></div>
+                    </div>
+
+                    <!-- PDF Live Scanning Progress Bar -->
+                    <div class="chunk-progress-wrapper hidden" id="pdfProgressWrapper" style="margin-top:16px;">
+                        <div class="progress-header">
+                            <span class="progress-title">
+                                <span class="spinner-btn" style="border-top-color:#ef4444;border-color:rgba(239,68,68,0.2);"></span>
+                                <span id="pdfProgressTitle">পিডিএফ স্ক্যান করা হচ্ছে (Reading PDF pages)...</span>
+                            </span>
+                            <span class="progress-pct" id="pdfProgressPct" style="color:#ef4444;">0%</span>
+                        </div>
+                        <div class="progress-track">
+                            <div class="progress-bar-fill" id="pdfProgressBarFill" style="width: 0%; background: linear-gradient(90deg, #ef4444, #f59e0b, #10b981);"></div>
+                        </div>
+                        <div class="progress-status-meta">
+                            <span id="pdfPageStatus">পৃষ্ঠা: ০ / ০</span>
+                            <span id="pdfSpeedStatus">গতি: হিসাব হচ্ছে...</span>
+                        </div>
+                    </div>
+
+                    <!-- PDF Scan Summary Stats Grid -->
+                    <div class="processed-stats-grid hidden" id="pdfStatsGrid" style="margin-top:16px;">
+                        <div class="stat-counter-card total">
+                            <span class="counter-num total" id="pdfCntTotal">0</span>
+                            <span class="counter-label">মোট প্রসেসড রোল</span>
+                        </div>
+                        <div class="stat-counter-card passed">
+                            <span class="counter-num passed" id="pdfCntPassed">0</span>
+                            <span class="counter-label">✓ উত্তীর্ণ (Passed)</span>
+                        </div>
+                        <div class="stat-counter-card referred">
+                            <span class="counter-num referred" id="pdfCntReferred">0</span>
+                            <span class="counter-label">⚠ রেফার্ড (Referred)</span>
+                        </div>
+                        <div class="stat-counter-card dropped">
+                            <span class="counter-num dropped" id="pdfCntDropped">0</span>
+                            <span class="counter-label">✕ ড্রপ আউট (Dropped)</span>
+                        </div>
+                        <div class="stat-counter-card" style="border-color:rgba(16,185,129,0.4);background:rgba(16,185,129,0.05);">
+                            <span class="counter-num" style="color:#10b981;" id="pdfScanTime">0s</span>
+                            <span class="counter-label">⚡ স্ক্যান সময় ও পেজ</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="admin-section">
+                <div class="admin-section-header">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <h3 class="admin-section-title">📤 ৩-৪ লক্ষ রেজাল্ট বাল্ক আপলোডার ও ফাস্ট প্রসেসর</h3>
+                        <span class="toolbar-badge" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);">
+                            ⚡ Non-Blocking Chunk Engine
+                        </span>
+                    </div>
+                    <span class="nav-badge" style="font-size:0.75rem">Zero-Freeze Async / Web Worker Ready</span>
+                </div>
+
+                <div class="admin-section-body">
+                    <!-- Metadata Selector Grid -->
+                    <div class="upload-meta-grid">
+                        <div class="form-group">
+                            <label for="adminSemester" class="form-label">সেমিস্টার (Semester):</label>
+                            <select id="adminSemester" class="form-select">
+                                <option value="">সকল সেমিস্টার (All)</option>
+                                <option value="1">১ম সেমিস্টার (1st)</option>
+                                <option value="2">২য় সেমিস্টার (2nd)</option>
+                                <option value="3">৩য় সেমিস্টার (3rd)</option>
+                                <option value="4">৪র্থ সেমিস্টার (4th)</option>
+                                <option value="5" selected>৫ম সেমিস্টার (5th)</option>
+                                <option value="6">৬ষ্ঠ সেমিস্টার (6th)</option>
+                                <option value="7">৭ম সেমিস্টার (7th)</option>
+                                <option value="8">৮ম সেমিস্টার (8th)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="adminRegulation" class="form-label">প্রবিধান (Regulation):</label>
+                            <select id="adminRegulation" class="form-select">
+                                <option value="2022" selected>প্রবিধান ২০২২</option>
+                                <option value="2016">প্রবিধান ২০১৬</option>
+                                <option value="2010">প্রবিধান ২০১০</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="adminExamYear" class="form-label">পরীক্ষার বছর (Exam Year):</label>
+                            <input type="text" id="adminExamYear" class="form-input" placeholder="যেমন: 2024">
+                        </div>
+                    </div>
+
+                    <!-- MS Word-like Large Copy-Paste Box -->
+                    <div class="word-editor-wrapper">
+                        <div class="word-editor-toolbar">
+                            <div class="toolbar-left">
+                                <span style="font-weight:700;">📄 BTEB রেজাল্ট শিট এডিটর</span>
+                                <span class="toolbar-badge" id="detectedRollBadge">ডিটেক্টেড রোল: 0</span>
+                            </div>
+                            <div class="toolbar-right">
+                                <button type="button" class="btn btn-outline" id="loadSampleTextBtn" style="padding:4px 10px;font-size:0.8rem;">
+                                    📋 ডেমো টেক্সট লোড করুন
+                                </button>
+                                <button type="button" class="btn btn-outline" id="clearEditorBtn" style="padding:4px 10px;font-size:0.8rem;color:#ef4444;">
+                                    🧹 পরিষ্কার করুন
+                                </button>
+                            </div>
+                        </div>
+
+                        <textarea
+                            id="bulkResultInput"
+                            class="word-textarea"
+                            placeholder="এখানে BTEB বোর্ডের PDF থেকে কপি করা হাজার হাজার বা লক্ষাধিক লাইনের টেক্সট সরাসরি Paste করুন..."
+                        ></textarea>
+                    </div>
+
+                    <!-- Live Preview Stats Bar -->
+                    <div class="preview-stats-bar" id="previewStatsBar"></div>
+
+                    <!-- Live Chunk Progress Bar (Visible during processing) -->
+                    <div class="chunk-progress-wrapper hidden" id="chunkProgressWrapper">
+                        <div class="progress-header">
+                            <span class="progress-title">
+                                <span class="spinner-btn" style="border-top-color:#10b981;border-color:rgba(16,185,129,0.2);"></span>
+                                <span>ডেটা প্রসেসিং চলছে (Non-Freezing Async Chunk)...</span>
+                            </span>
+                            <span class="progress-pct" id="progressPctText">0%</span>
+                        </div>
+                        <div class="progress-track">
+                            <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+                        </div>
+                        <div class="progress-status-meta">
+                            <span id="progressStatusText">প্রসেস হচ্ছে: ০ / ০ রোল</span>
+                            <span id="progressSpeedText">গতি: ০ রোল/সেকেন্ড | সময়: ০ms</span>
+                        </div>
+                    </div>
+
+                    <!-- Real-Time Counter Cards -->
+                    <div class="processed-stats-grid hidden" id="processedStatsGrid">
+                        <div class="stat-counter-card total">
+                            <span class="counter-num total" id="cntTotalRolls">0</span>
+                            <span class="counter-label">মোট প্রসেসড রোল</span>
+                        </div>
+                        <div class="stat-counter-card passed">
+                            <span class="counter-num passed" id="cntPassedRolls">0</span>
+                            <span class="counter-label">✓ উত্তীর্ণ (Passed)</span>
+                        </div>
+                        <div class="stat-counter-card referred">
+                            <span class="counter-num referred" id="cntReferredRolls">0</span>
+                            <span class="counter-label">⚠ রেফার্ড (Referred)</span>
+                        </div>
+                        <div class="stat-counter-card dropped">
+                            <span class="counter-num dropped" id="cntDroppedRolls">0</span>
+                            <span class="counter-label">✕ ড্রপ আউট (Dropped)</span>
+                        </div>
+                        <div class="stat-counter-card" style="border-color:rgba(139,92,246,0.4);background:rgba(139,92,246,0.05);">
+                            <span class="counter-num" style="color:#8b5cf6;" id="cntProcessTime">0ms</span>
+                            <span class="counter-label">⚡ প্রসেসিং সময়</span>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="high-cap-actions">
+                        <div class="action-group-left">
+                            <button type="button" class="btn btn-primary" id="savePublishBtn" style="font-size:0.95rem;padding:12px 24px;">
+                                💾 Save & Publish Result
+                            </button>
+                            <button type="button" class="btn btn-outline" id="exportOptimizedBtn" style="font-size:0.95rem;padding:12px 20px;border-color:#10b981;color:#10b981;">
+                                🚀 Export Optimized JSON (হোস্টিংয়ে আপলোডের জন্য)
+                            </button>
+                        </div>
+                        <div class="action-group-right">
+                            <span style="font-size:0.8rem;color:var(--text-muted);">
+                                💡 ৩-৪ লক্ষ রোলের মেমোরি সাইজ ৮৫% কমে যাবে
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Saved Result Sheets List -->
+            <div class="admin-section">
+                <div class="admin-section-header">
+                    <h3 class="admin-section-title">📚 সেভ করা রেজাল্ট শীটসমূহ (Saved Sheets)</h3>
+                </div>
+                <div class="admin-section-body" id="savedSheetsContainer"></div>
+            </div>
+
+            <!-- Backup & Export -->
+            <div class="admin-section">
+                <div class="admin-section-header">
+                    <h3 class="admin-section-title">💾 ব্যাকআপ ও ডাউনলোড (Backup & Export)</h3>
+                </div>
+                <div class="admin-section-body">
+                    <p style="color:#64748b;font-size:0.88rem;margin-bottom:16px;">
+                        সকল রেজাল্ট শিট এবং বই-সাজেশনের পূর্ণাঙ্গ ব্যাকআপ ডাউনলোড করুন অথবা ইমপোর্ট করুন:
+                    </p>
+                    <div class="backup-actions-row">
+                        <button type="button" class="btn btn-outline" id="backupJsonBtn">
+                            📦 সম্পূর্ণ ব্যাকআপ ডাউনলোড (JSON)
+                        </button>
+                        <button type="button" class="btn btn-outline" id="backupTextBtn">
+                            📄 টেক্সট ফাইল ডাউনলোড
+                        </button>
+                        <button type="button" class="btn btn-outline" id="importBtn">
+                            📥 ব্যাকআপ ফাইল ইমপোর্ট
+                        </button>
+                        <input type="file" id="importFileInput" accept=".json" style="display:none;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Danger Zone -->
+            <div class="admin-section danger-zone">
+                <div class="admin-section-header">
+                    <h3 class="admin-section-title">⚠️ বিপদ অঞ্চল (Danger Zone)</h3>
+                </div>
+                <div class="admin-section-body">
+                    <p style="color:#b91c1c;font-size:0.88rem;margin-bottom:14px;">
+                        <strong>সতর্কতা:</strong> নিচের বাটনে ক্লিক করলে সকল সেভ করা রেজাল্ট শীট মুছে যাবে।
+                    </p>
+                    <button type="button" class="btn btn-danger" id="deleteAllBtn">
+                        🗑️ সকল রেজাল্ট শীট মুছে ফেলুন
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ================= TAB 2: MANAGE INDIVIDUAL RESULTS (Step 7) ================= -->
+        <div id="tab-single-result" class="admin-tab-content hidden">
+
+            <!-- Search Roll Box to Edit or Delete -->
+            <div class="admin-section single-result-search-card">
+                <div class="admin-section-header">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <h3 class="admin-section-title">🔍 রোল নম্বর দিয়ে রেজাল্ট খুঁজুন, এডিট ও ডিলিট করুন</h3>
+                        <span class="toolbar-badge" style="background:rgba(59,130,246,0.15);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);">
+                            Instant Live Lookup
+                        </span>
+                    </div>
+                </div>
+
+                <div class="admin-section-body">
+                    <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:14px;">
+                        যেকোনো নির্দিষ্ট শিক্ষার্থীর রোল নম্বর লিখে সার্চ করুন। শিক্ষার্থীর পূর্ববর্তী সকল সেমিস্টারের জিপিএ ও রেফার্ড বিষয় সরাসরি নিচের এডিটর বক্সে লোড হবে:
+                    </p>
+                    <div class="single-search-row">
+                        <div class="single-search-input-wrap">
+                            <label class="form-label" for="searchEditRoll">রোল নম্বর লিখুন (Roll Number):</label>
+                            <input 
+                                type="text" 
+                                id="searchEditRoll" 
+                                class="form-input" 
+                                placeholder="যেমন: 100001, 100002, 100003..."
+                            />
+                        </div>
+                        <button type="button" class="btn btn-primary" id="btnSearchSingleRoll" onclick="searchStudentForEdit()" style="height:44px;padding:0 22px;">
+                            🔍 খুঁজুন ও এডিট করুন
+                        </button>
+                        <button type="button" class="btn btn-outline" onclick="clearSingleResultForm()" style="height:44px;padding:0 16px;">
+                            🔄 নতুন ফর্ম
+                        </button>
+                    </div>
+
+                    <!-- Search Result Info Banner -->
+                    <div id="singleSearchFoundBanner" class="hidden" style="margin-top:16px;padding:12px 16px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                        <div>
+                            <span style="font-weight:700;color:#10b981;">✓ শিক্ষার্থী পাওয়া গেছে:</span>
+                            <span id="foundStudentSummary" style="font-size:0.9rem;margin-left:6px;font-weight:600;"></span>
+                        </div>
+                        <span class="active-roll-badge" id="foundSheetBadge">শীট: ৫ম সেমিস্টার</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Single Result Edit / Add Form -->
+            <div class="admin-section">
+                <div class="admin-section-header">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <h3 class="admin-section-title" id="singleFormHeading">➕ নতুন রেজাল্ট যোগ / পরিবর্তন ফর্ম</h3>
+                        <span id="formModeBadge" class="nav-badge" style="background:#3b82f6;color:#fff;">নতুন রেজাল্ট মোড</span>
+                    </div>
+                </div>
+
+                <div class="admin-section-body">
+                    <form id="singleResultForm" onsubmit="event.preventDefault(); saveSingleResultHandler();">
+                        <input type="hidden" id="editingExistingRoll" value="">
+
+                        <div class="upload-meta-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="srRoll">রোল নম্বর (Roll Number): *</label>
+                                <input 
+                                    type="text" 
+                                    id="srRoll" 
+                                    class="form-input" 
+                                    placeholder="যেমন: 100001" 
+                                    required
+                                />
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="srSemester">সেমিস্টার (Semester): *</label>
+                                <select id="srSemester" class="form-select">
+                                    <option value="1">১ম সেমিস্টার (1st)</option>
+                                    <option value="2">২য় সেমিস্টার (2nd)</option>
+                                    <option value="3">৩য় সেমিস্টার (3rd)</option>
+                                    <option value="4">৪র্থ সেমিস্টার (4th)</option>
+                                    <option value="5" selected>৫ম সেমিস্টার (5th)</option>
+                                    <option value="6">৬ষ্ঠ সেমিস্টার (6th)</option>
+                                    <option value="7">৭ম সেমিস্টার (7th)</option>
+                                    <option value="8">৮ম সেমিস্টার (8th)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="srRegulation">প্রবিধান (Regulation):</label>
+                                <select id="srRegulation" class="form-select">
+                                    <option value="2022" selected>প্রবিধান ২০২২</option>
+                                    <option value="2016">প্রবিধান ২০১৬</option>
+                                    <option value="2010">প্রবিধান ২০১০</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="srStatus">ফলাফল স্ট্যাটাস (Status): *</label>
+                                <select id="srStatus" class="form-select" onchange="handleStatusChangeUI()">
+                                    <option value="Passed" selected>✓ উত্তীর্ণ (Passed)</option>
+                                    <option value="Referred">⚠ রেফার্ড (Referred)</option>
+                                    <option value="Dropped Out">✕ ড্রপ আউট (Dropped Out)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 8 Semesters GPA Inputs Grid -->
+                        <div style="margin:20px 0 10px;">
+                            <label class="form-label" style="display:flex;justify-content:space-between;">
+                                <span>সেমিস্টার ভিত্তিক জিপিএ পয়েন্ট (GPA-1 থেকে GPA-8):</span>
+                                <span style="font-size:0.78rem;color:var(--text-muted);font-weight:normal;">পয়েন্ট (যেমন: 3.53) অথবা ref লিখুন</span>
+                            </label>
+                            
+                            <div class="gpa-inputs-grid">
+                                <div class="gpa-field-card">
+                                    <div class="gpa-field-label">
+                                        <span>১ম পর্ব</span>
+                                        <small>gpa1</small>
+                                    </div>
+                                    <input type="text" id="srGpa1" class="gpa-field-input" placeholder="e.g. 3.53">
+                                </div>
+                                <div class="gpa-field-card">
+                                    <div class="gpa-field-label">
+                                        <span>২য় পর্ব</span>
+                                        <small>gpa2</small>
+                                    </div>
+                                    <input type="text" id="srGpa2" class="gpa-field-input" placeholder="e.g. 2.96">
+                                </div>
+                                <div class="gpa-field-card">
+                                    <div class="gpa-field-label">
+                                        <span>৩য় পর্ব</span>
+                                        <small>gpa3</small>
+                                    </div>
+                                    <input type="text" id="srGpa3" class="gpa-field-input" placeholder="e.g. 2.63">
+                                </div>
+                                <div class="gpa-field-card">
+                                    <div class="gpa-field-label">
+                                        <span>৪র্থ পর্ব</span>
+                                        <small>gpa4</small>
+                                    </div>
+                                    <input type="text" id="srGpa4" class="gpa-field-input" placeholder="e.g. 3.20">
+                                </div>
+                                <div class="gpa-field-card">
+                                    <div class="gpa-field-label">
+                                        <span>৫ম পর্ব</span>
+                                        <small>gpa5</small>
+                                    </div>
+                                    <input type="text" id="srGpa5" class="gpa-field-input" placeholder="e.g. 3.06">
+                                </div>
+                                <div class="gpa-field-card">
+                                    <div class="gpa-field-label">
+                                        <span>৬ষ্ঠ পর্ব</span>
+                                        <small>gpa6</small>
+                                    </div>
+                                    <input type="text" id="srGpa6" class="gpa-field-input" placeholder="e.g. 3.45">
+                                </div>
+                                <div class="gpa-field-card">
+                                    <div class="gpa-field-label">
+                                        <span>৭ম পর্ব</span>
+                                        <small>gpa7</small>
+                                    </div>
+                                    <input type="text" id="srGpa7" class="gpa-field-input" placeholder="e.g. 3.60">
+                                </div>
+                                <div class="gpa-field-card">
+                                    <div class="gpa-field-label">
+                                        <span>৮ম পর্ব</span>
+                                        <small>gpa8</small>
+                                    </div>
+                                    <input type="text" id="srGpa8" class="gpa-field-input" placeholder="e.g. 3.80">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Referred Subjects Input -->
+                        <div class="form-group" style="margin-bottom:18px;">
+                            <label class="form-label" for="srRefSub">
+                                রেফার্ড বা ড্রপ বিষয়সমূহ (Referred Subject Codes):
+                            </label>
+                            <input 
+                                type="text" 
+                                id="srRefSub" 
+                                class="form-input" 
+                                placeholder="যেমন: 28542(T), 28544(T), 28553(T), 28554(T)"
+                            />
+                            <small style="color:var(--text-muted);font-size:0.78rem;display:block;margin-top:4px;">
+                                বিটিইবি ফরম্যাট: বিষয় কোডের পর (T) তত্ত্বীয় বা (P) ব্যবহারিক উল্লেখ করতে পারেন।
+                            </small>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="single-result-action-bar">
+                            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                                <button type="submit" class="btn btn-primary" id="srSaveBtn" style="padding:10px 22px;">
+                                    ➕ নতুন রেজাল্ট যোগ করুন
+                                </button>
+                                <button type="button" class="btn btn-outline hidden" id="srUpdateBtn" onclick="updateExistingStudentHandler()" style="padding:10px 22px;border-color:#10b981;color:#10b981;">
+                                    💾 রেজাল্ট আপডেট করুন (Update Result)
+                                </button>
+                                <button type="button" class="btn btn-danger hidden" id="srDeleteBtn" onclick="deleteCurrentStudentHandler()" style="padding:10px 18px;">
+                                    🗑️ এই রেজাল্ট মুছে ফেলুন (Delete)
+                                </button>
+                            </div>
+                            <button type="button" class="btn btn-outline" onclick="clearSingleResultForm()" style="padding:10px 16px;">
+                                🔄 ফর্ম রিসেট
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Danger Zone for Quick Result Deletion -->
+            <div class="admin-section danger-zone">
+                <div class="admin-section-header">
+                    <h3 class="admin-section-title">⚠️ রেজাল্ট মোছার ডিলিট অপশন (Delete Options)</h3>
+                </div>
+                <div class="admin-section-body">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                        <div>
+                            <label class="form-label">নির্দিষ্ট রোল নম্বর সরাসরি ডিলিট:</label>
+                            <div style="display:flex;gap:8px;">
+                                <input type="text" id="quickDeleteRollInput" class="form-input" placeholder="রোল নম্বর লিখুন">
+                                <button type="button" class="btn btn-danger" onclick="quickDeleteStudentHandler()" style="white-space:nowrap;">
+                                    🗑️ ডিলিট
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label">সকল সেভ করা রেজাল্ট একসাথে ডিলিট:</label>
+                            <button type="button" class="btn btn-danger" onclick="confirmDeleteAllResults()" style="width:100%;height:44px;">
+                                ⚠️ সকল রেজাল্ট মুছে ফেলুন (Delete All)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ================= TAB 3: MANAGE BOOKS, NOTES & SUGGESTIONS ================= -->
+        <div id="tab-materials" class="admin-tab-content hidden">
+
+            <!-- Materials Add Form -->
+            <div class="admin-section">
+                <div class="admin-section-header">
+                    <h3 class="admin-section-title">✍️ নতুন বই, হ্যান্ডনোটস বা সাজেশন যুক্ত করুন</h3>
+                    <button type="button" class="btn btn-outline" onclick="loadSampleMaterialsAdmin()" style="font-size:0.8rem;padding:4px 10px;">
+                        📋 ডেমো বই-সাজেশন লোড করুন
+                    </button>
+                </div>
+
+                <div class="admin-section-body">
+                    <form id="materialForm" onsubmit="event.preventDefault(); saveMaterialHandler();">
+                        <input type="hidden" id="matEditId" value="">
+
+                        <div class="upload-meta-grid">
+                            <div class="form-group">
+                                <label class="form-label">ক্যাটাগরি (Category): *</label>
+                                <select id="matCategory" class="form-select" required>
+                                    <option value="book">📚 পাঠ্যবই ও সিলেবাস (Book)</option>
+                                    <option value="note">📝 হ্যান্ডনোটস ও শিট (Note)</option>
+                                    <option value="suggestion" selected>🎯 সুপার সাজেশন (Suggestion)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">সেমিস্টার (Semester): *</label>
+                                <select id="matSemester" class="form-select" required>
+                                    <option value="1">১ম সেমিস্টার</option>
+                                    <option value="2">২য় সেমিস্টার</option>
+                                    <option value="3">৩য় সেমিস্টার</option>
+                                    <option value="4">৪র্থ সেমিস্টার</option>
+                                    <option value="5" selected>৫ম সেমিস্টার</option>
+                                    <option value="6">৬ষ্ঠ সেমিস্টার</option>
+                                    <option value="7">৭ম সেমিস্টার</option>
+                                    <option value="8">৮ম সেমিস্টার</option>
+                                    <option value="All">সকল সেমিস্টার</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">টেকনোলজি (Technology): *</label>
+                                <select id="matTechnology" class="form-select" required>
+                                    <option value="Computer" selected>কম্পিউটার (CST)</option>
+                                    <option value="Civil">সিভিল (Civil)</option>
+                                    <option value="Electrical">ইলেকট্রিক্যাল (Electrical)</option>
+                                    <option value="Mechanical">মেকানিক্যাল (Mechanical)</option>
+                                    <option value="Electronics">ইলেকট্রনিক্স (Electronics)</option>
+                                    <option value="All">সকল টেকনোলজি</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom:14px;">
+                            <label class="form-label">শিরোনাম (Title): *</label>
+                            <input 
+                                type="text" 
+                                id="matTitle" 
+                                class="form-input" 
+                                placeholder="যেমন: ৫ম সেমিস্টার Microprocessor & Interfacing চূড়ান্ত সাজেশন ২০২৪" 
+                                required
+                            />
+                        </div>
+
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+                            <div class="form-group">
+                                <label class="form-label">লেখক / শিক্ষক / সূত্র (Author/Source):</label>
+                                <input type="text" id="matAuthor" class="form-input" placeholder="যেমন: পলিটেকনিক টিচার্স ফোরাম">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">ডাউনলোড বা ড্রাইভ লিংক (PDF / Drive URL):</label>
+                                <input type="url" id="matFileUrl" class="form-input" placeholder="https://drive.google.com/file/d/...">
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom:14px;">
+                            <label class="form-label">সংক্ষিপ্ত বিবরণী (Short Description):</label>
+                            <input 
+                                type="text" 
+                                id="matDesc" 
+                                class="form-input" 
+                                placeholder="সংক্ষেপে শিক্ষার্থীদের জন্য গুরুত্বপূর্ণ তথ্য..."
+                            />
+                        </div>
+
+                        <!-- Image / Note Screenshot / Diagram Embed & Upload -->
+                        <div class="form-group" style="margin-bottom:14px;">
+                            <label class="form-label">ছবি বা কভার ফটো (Image / Diagram / Note Screenshot):</label>
+                            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                                <input type="text" id="matCoverUrl" class="form-input" style="flex:1;min-width:220px;" placeholder="ছবির ডিরেক্ট URL (যেমন: https://.../note.jpg) অথবা ফাইল আপলোড করুন" oninput="updateImagePreviewFromInput()">
+                                <label class="btn btn-outline" style="cursor:pointer;padding:8px 14px;white-space:nowrap;font-size:0.85rem;">
+                                    📁 ছবি নির্বাচন
+                                    <input type="file" id="matImageFileInput" accept="image/*" style="display:none;" onchange="handleImageFileSelect(event)">
+                                </label>
+                            </div>
+                            <div id="matImagePreviewWrap" class="hidden" style="margin-top:10px;display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--bg-page);border:1px solid var(--border-color);border-radius:var(--radius-sm);">
+                                <img id="matImagePreview" src="" alt="Preview" style="max-height:80px;border-radius:4px;object-fit:cover;">
+                                <div style="font-size:0.8rem;color:var(--text-muted);flex:1;">ছবির প্রিভিউ সক্রিয়</div>
+                                <button type="button" class="btn btn-outline" onclick="removeImagePreview()" style="color:#ef4444;font-size:0.75rem;padding:4px 8px;">🗑️ রিমুভ</button>
+                            </div>
+                        </div>
+
+                        <!-- Rich Text Editor for Detailed Notes / Suggestions -->
+                        <div class="form-group" style="margin-bottom:18px;">
+                            <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">
+                                <span>বিস্তারিত কনটেন্ট / নোটস বা অধ্যায় সূচি (Rich Text Editor):</span>
+                                <span style="font-size:0.78rem;color:var(--text-muted);font-weight:normal;">Word-like Formatting Supported</span>
+                            </label>
+                            
+                            <!-- Formatting Toolbar -->
+                            <div class="word-editor-toolbar" style="border-radius:6px 6px 0 0;border:1px solid var(--border-color);border-bottom:none;padding:6px 10px;">
+                                <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+                                    <button type="button" class="btn btn-outline" style="padding:3px 8px;font-size:0.78rem;font-weight:700;" onclick="insertRichFormat('bold')" title="বোল্ড">𝗕 Bold</button>
+                                    <button type="button" class="btn btn-outline" style="padding:3px 8px;font-size:0.78rem;font-style:italic;" onclick="insertRichFormat('italic')" title="ইটালিক">𝘐 Italic</button>
+                                    <button type="button" class="btn btn-outline" style="padding:3px 8px;font-size:0.78rem;font-weight:700;" onclick="insertRichFormat('h2')" title="হেডিং (H2)">📌 H2</button>
+                                    <button type="button" class="btn btn-outline" style="padding:3px 8px;font-size:0.78rem;" onclick="insertRichFormat('bullet')" title="বুলেট লিস্ট">• List</button>
+                                    <button type="button" class="btn btn-outline" style="padding:3px 8px;font-size:0.78rem;" onclick="insertRichFormat('number')" title="নম্বর লিস্ট">1. Num</button>
+                                    <button type="button" class="btn btn-outline" style="padding:3px 8px;font-size:0.78rem;" onclick="insertRichFormat('quote')" title="উদ্ধৃতি (Quote)">❝ Quote</button>
+                                    <button type="button" class="btn btn-outline" style="padding:3px 8px;font-size:0.78rem;" onclick="insertRichFormat('code')" title="সূত্র / কোড">&lt;/&gt; Code</button>
+                                    <button type="button" class="btn btn-outline" style="padding:3px 8px;font-size:0.78rem;" onclick="insertRichFormat('link')" title="লিংক">🔗 Link</button>
+                                </div>
+                            </div>
+
+                            <textarea 
+                                id="matContent" 
+                                class="bulk-textarea" 
+                                style="min-height:180px;border-radius:0 0 6px 6px;margin-top:0;" 
+                                placeholder="এখানে ওয়ার্ডের মতো বিস্তারিত বিবরণ, সাজেশনের গুরুত্বপূর্ণ অধ্যায়, প্রশ্নাবলি বা সিলেবাসের পয়েন্টগুলো লিখুন..."
+                            ></textarea>
+                        </div>
+
+                        <div style="display:flex;justify-content:flex-end;gap:10px;">
+                            <button type="button" class="btn btn-outline" onclick="resetMaterialForm()">রিসেট</button>
+                            <button type="submit" class="btn btn-primary" id="saveMatBtn" style="padding:10px 24px;">
+                                🚀 পোস্ট পাবলিশ করুন (Publish)
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Published Materials List -->
+            <div class="admin-section">
+                <div class="admin-section-header">
+                    <h3 class="admin-section-title">📚 প্রকাশিত বই ও সাজেশনের তালিকা</h3>
+                    <span id="matListCountBadge" class="nav-badge">০টি আইটেম</span>
+                </div>
+
+                <div class="admin-section-body" id="adminMaterialsList">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ================= TAB 3: SITE SETTINGS & MENU TOGGLES ================= -->
+        <div id="tab-settings" class="admin-tab-content hidden">
+
+            <!-- Menu Toggles Section -->
+            <div class="admin-section">
+                <div class="admin-section-header">
+                    <h3 class="admin-section-title">🔘 মেনু অন/অফ কন্ট্রোল (Menu Display Settings)</h3>
+                    <span class="nav-badge">Coming Soon vs Active</span>
+                </div>
+
+                <div class="admin-section-body">
+                    <p style="color:#64748b;font-size:0.86rem;margin-bottom:16px;">
+                        নিচের সুইচগুলো অন (ON) রাখলে শিক্ষার্থীরা সরাসরি বই, নোটস ও সাজেশন পেজে যেতে পারবে। বন্ধ (OFF) রাখলে "Coming Soon" মোডাল দেখাবে:
+                    </p>
+
+                    <!-- Toggle Result Search Engine (Master Switch) -->
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <strong>🎓 রেজাল্ট সার্চ ইঞ্জিন ও সার্ভার (Result Engine Master Switch)</strong>
+                            <span>চালু রাখলে শিক্ষার্থীরা রেজাল্ট খুঁজতে পারবে। বন্ধ রাখলে শিক্ষার্থী পেজে মেইনটেন্যান্স ব্যানার দেখাবে।</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="toggleResultEngine" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- Toggle Books -->
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <strong>📚 বই ও সিলেবাস মেনু (Books Menu)</strong>
+                            <span>চালু রাখলে শিক্ষার্থীরা সকল ডিপ্লোমা পাঠ্যবই দেখতে ও ডাউনলোড করতে পারবে।</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="toggleMenuBooks" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- Toggle Notes -->
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <strong>📝 হ্যান্ডনোটস মেনু (Handnotes Menu)</strong>
+                            <span>চালু রাখলে শিক্ষার্থীরা অধ্যায়ভিত্তিক হ্যান্ডনোটস ও লেকচার শিট পড়তে পারবে।</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="toggleMenuNotes" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- Toggle Suggestions -->
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <strong>🎯 সুপার সাজেশন মেনু (Suggestions Menu)</strong>
+                            <span>চালু রাখলে বোর্ড ফাইনাল পরীক্ষার চূড়ান্ত সুপার সাজেশনগুলো দৃশ্যমান হবে।</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="toggleMenuSuggestions" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- Toggle Notice Bar -->
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <strong>📢 নোটিশ অ্যানাউন্সমেন্ট বার (Notice Announcement Bar)</strong>
+                            <span>ওয়েবসাইটের উপরে চলমান নোটিশ বা হেডলাইন বার প্রদর্শন করবে।</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="toggleShowNotice" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Site Branding & Content Settings -->
+            <div class="admin-section">
+                <div class="admin-section-header">
+                    <h3 class="admin-section-title">📝 সাইট ব্র্যান্ডিং ও নোটিশ কনফিগারেশন</h3>
+                </div>
+
+                <div class="admin-section-body">
+                    <form id="siteSettingsForm" onsubmit="event.preventDefault(); saveSiteSettingsHandler();">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px;">
+                            <div class="form-group">
+                                <label class="form-label">পোর্টালের নাম (Portal Title):</label>
+                                <input type="text" id="setPortalTitle" class="form-input" value="BTEB Education Portal">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">হেল্পলাইন / যোগাযোগ নম্বর:</label>
+                                <input type="text" id="setHelpline" class="form-input" value="01700-000000">
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom:18px;">
+                            <label class="form-label">ওয়েবসাইটের নোটিশ টেক্সট (Notice Bar Message):</label>
+                            <textarea id="setNoticeText" class="form-input" style="height:70px;resize:vertical;">📢 ডিপ্লোমা ইন ইঞ্জিনিয়ারিং পরীক্ষা ফলাফল ও নতুন সেমিস্টারের বই-সাজেশন আপডেট করা হয়েছে।</textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" style="padding:10px 24px;">
+                            💾 সাইট সেটিংস সংরক্ষণ করুন (Save Settings)
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Exportable Code Guide Section -->
+            <div class="admin-section">
+                <div class="admin-section-header">
+                    <h3 class="admin-section-title">🚀 যেকোনো হোস্টিংয়ে ব্যবহারের নিয়মাবলী (Deployment Guide)</h3>
+                    <span class="tag tag-success">১০০% রেডি ও স্বয়ংসম্পূর্ণ</span>
+                </div>
+
+                <div class="admin-section-body" style="line-height:1.7;color:#334155;font-size:0.92rem;">
+                    <p style="margin-bottom:12px;">
+                        এই প্রজেক্টটি কোনো সার্ভার-সাইড ব্যাকএন্ড (Node.js/PHP) ছাড়াই সম্পূর্ণ ক্লায়েন্ট সাইড এবং ব্রাউজারের <strong>LocalStorage</strong>-এ কাজ করে। তাই এটি যেকোনো ফ্রি বা পেইড ওয়েব হোস্টিংয়ে তাৎক্ষণিক চলবে:
+                    </p>
+
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:var(--radius-md);padding:16px;margin-bottom:16px;">
+                        <h4 style="font-size:0.95rem;font-weight:700;color:var(--secondary);margin-bottom:8px;">📁 ফোল্ডার কাঠামো:</h4>
+                        <code style="font-size:0.85rem;color:#0f172a;line-height:1.8;display:block;">
+                            ├── index.html &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(স্টুডেন্ট রেজাল্ট সার্চ পেজ)<br>
+                            ├── admin.html &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(অ্যাডমিন ড্যাশবোর্ড ও কন্ট্রোল প্যানেল)<br>
+                            ├── materials.html &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(বই, নোটস ও সুপার সাজেশন লাইব্রেরি)<br>
+                            ├── css/ [style.css, admin.css, print.css]<br>
+                            └── js/ &nbsp;[parser.js, data.js, storage.js, app.js, admin.js]
+                        </code>
+                    </div>
+
+                    <h4 style="font-size:0.95rem;font-weight:700;color:var(--secondary);margin-bottom:6px;">🌐 যেভাবে হোস্ট করবেন:</h4>
+                    <ol style="margin-left:20px;margin-bottom:14px;font-size:0.88rem;">
+                        <li><strong>cPanel / Apache / Nginx:</strong> আপনার হোস্টিংয়ের <code>public_html</code> ফোল্ডারে এই ফাইলগুলো সরাসরি আপলোড বা ড্রপ করুন।</li>
+                        <li><strong>GitHub Pages:</strong> গিটহব রিপোজিটরিতে কোড পুশ করে <em>Settings &gt; Pages &gt; Branch: main</em> সিলেক্ট করলেই ফ্রিতে সাইট লাইভ হবে।</li>
+                        <li><strong>Netlify / Vercel:</strong> সম্পূর্ণ ফোল্ডারটি ড্র্যাগ অ্যান্ড ড্রপ করলেই ১ ক্লিকে গ্লোবাল সিডিএন-এ হোস্ট হয়ে যাবে।</li>
+                    </ol>
+
+                    <div style="display:flex;gap:10px;">
+                        <button type="button" class="btn btn-outline" onclick="BTEBStorage.exportAsJSON()">
+                            📦 সম্পূর্ণ ডেটাবেজ ব্যাকআপ (JSON)
+                        </button>
+                        <a href="index.html" class="btn btn-primary" style="text-decoration:none;">
+                            🏠 হোমপেজ খুলুন
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ================= TAB 5: SECURITY & CREDENTIALS (Step 7) ================= -->
+        <div id="tab-security" class="admin-tab-content hidden">
+            <div class="admin-section">
+                <div class="admin-section-header">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <h3 class="admin-section-title">🔐 সিকিউরিটি ও পাসওয়ার্ড পরিবর্তন (Change Credentials)</h3>
+                        <span class="nav-badge" style="background:#10b981;color:#fff;">Protected</span>
+                    </div>
+                </div>
+
+                <div class="admin-section-body">
+                    <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:20px;line-height:1.6;">
+                        নিরাপত্তার স্বার্থে বর্তমান পাসওয়ার্ড যাচাই করে নতুন <strong>Username</strong> এবং নতুন <strong>Password</strong> সেট করুন। পরবর্তীতে অ্যাডমিন প্যানেলে লগইন করার সময় এই নতুন তথ্য ব্যবহার করতে হবে:
+                    </p>
+
+                    <form id="changeCredentialsForm" onsubmit="event.preventDefault(); handleChangeCredentialsSubmit();" style="max-width:540px;">
+                        <!-- Current Password -->
+                        <div class="form-group" style="margin-bottom:16px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                                <label class="form-label" for="secCurrentPass" style="margin-bottom:0;">বর্তমান পাসওয়ার্ড (Current Password): *</label>
+                                <button type="button" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:0.78rem;font-weight:600;" onclick="document.getElementById('secCurrentPass').value=BTEBStorage.getAdminCredentials().password;">
+                                    ⚡ বর্তমান পাসওয়ার্ড স্বয়ংক্রিয় পূরণ
+                                </button>
+                            </div>
+                            <div class="password-input-group">
+                                <input 
+                                    type="password" 
+                                    id="secCurrentPass" 
+                                    class="form-input" 
+                                    placeholder="বর্তমান পাসওয়ার্ড লিখুন" 
+                                    required
+                                />
+                                <button type="button" class="btn-toggle-eye" onclick="togglePasswordVisibility('secCurrentPass', this)" title="পাসওয়ার্ড দেখুন / লুকান">
+                                    👁️
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- New Username -->
+                        <div class="form-group" style="margin-bottom:16px;">
+                            <label class="form-label" for="secNewUsername">নতুন ইউজারনেম (New Username): *</label>
+                            <input 
+                                type="text" 
+                                id="secNewUsername" 
+                                class="form-input" 
+                                placeholder="যেমন: sabbir12 বা নতুন নাম" 
+                                required
+                            />
+                            <small style="color:var(--text-muted);font-size:0.78rem;">ইউজারনেম ছোট বা বড় হাতের অক্ষরে লিখলেও লগইন করা যাবে।</small>
+                        </div>
+
+                        <!-- New Password -->
+                        <div class="form-group" style="margin-bottom:16px;">
+                            <label class="form-label" for="secNewPass">নতুন পাসওয়ার্ড (New Password): *</label>
+                            <div class="password-input-group">
+                                <input 
+                                    type="password" 
+                                    id="secNewPass" 
+                                    class="form-input" 
+                                    placeholder="নতুন শক্তিশালী পাসওয়ার্ড লিখুন" 
+                                    required
+                                />
+                                <button type="button" class="btn-toggle-eye" onclick="togglePasswordVisibility('secNewPass', this)" title="পাসওয়ার্ড দেখুন / লুকান">
+                                    👁️
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Confirm New Password -->
+                        <div class="form-group" style="margin-bottom:22px;">
+                            <label class="form-label" for="secConfirmPass">নতুন পাসওয়ার্ড নিশ্চিত করুন (Confirm Password): *</label>
+                            <div class="password-input-group">
+                                <input 
+                                    type="password" 
+                                    id="secConfirmPass" 
+                                    class="form-input" 
+                                    placeholder="নতুন পাসওয়ার্ডটি পুনরায় লিখুন" 
+                                    required
+                                />
+                                <button type="button" class="btn-toggle-eye" onclick="togglePasswordVisibility('secConfirmPass', this)" title="পাসওয়ার্ড দেখুন / লুকান">
+                                    👁️
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style="display:flex;gap:12px;align-items:center;">
+                            <button type="submit" class="btn btn-primary" style="padding:11px 26px;">
+                                💾 তথ্য আপডেট ও সংরক্ষণ করুন
+                            </button>
+                            <button type="button" class="btn btn-outline" onclick="loadSecurityFormCredentials()" style="padding:11px 16px;">
+                                🔄 রিসেট
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Scripts -->
+    <script src="js/parser.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/admin.js"></script>
+    <script>
+        // Tab Switcher for Admin Page
+        function switchAdminTab(tabId) {
+            document.querySelectorAll('.admin-main-tab').forEach(function(b){
+                b.classList.remove('active');
+                if (b.getAttribute('data-tab') === tabId) b.classList.add('active');
+            });
+            document.querySelectorAll('.admin-tab-content').forEach(function(c){
+                c.classList.add('hidden');
+            });
+            const activeEl = document.getElementById(tabId);
+            if (activeEl) activeEl.classList.remove('hidden');
+
+            if (tabId === 'tab-materials') {
+                renderAdminMaterialsList();
+            } else if (tabId === 'tab-settings') {
+                loadSiteSettingsUI();
+            } else if (tabId === 'tab-security') {
+                loadSecurityFormCredentials();
+            }
+        }
+
+        // Theme Switcher for Admin Page
+        (function() {
+            var themeToggleBtn = document.getElementById('themeToggleBtn');
+            var themeIcon = document.getElementById('themeIcon');
+            var savedTheme = localStorage.getItem('bteb_theme') || 
+                ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+            function applyTheme(t) {
+                document.documentElement.setAttribute('data-theme', t);
+                if (themeIcon) themeIcon.textContent = t === 'dark' ? '☀️' : '🌙';
+            }
+            applyTheme(savedTheme);
+            if (themeToggleBtn) {
+                themeToggleBtn.addEventListener('click', function() {
+                    var cur = document.documentElement.getAttribute('data-theme') || 'light';
+                    var next = cur === 'dark' ? 'light' : 'dark';
+                    applyTheme(next);
+                    localStorage.setItem('bteb_theme', next);
+                });
+            }
+        })();
+
+        // On load check hash (e.g. #tab-materials)
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.location.hash === '#tab-single-result') {
+                switchAdminTab('tab-single-result');
+            } else if (window.location.hash === '#tab-materials') {
+                switchAdminTab('tab-materials');
+            } else if (window.location.hash === '#tab-settings') {
+                switchAdminTab('tab-settings');
+            } else if (window.location.hash === '#tab-security') {
+                switchAdminTab('tab-security');
+            }
+        });
+    </script>
+</body>
+</html>

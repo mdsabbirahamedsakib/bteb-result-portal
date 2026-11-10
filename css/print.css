@@ -1,0 +1,150 @@
+/* ==========================================================================
+   BTEB Result & Education Portal - Print Stylesheet
+   Formats Marksheet for Clean A4 / PDF Export
+   ========================================================================== */
+
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 15mm 12mm 15mm 12mm;
+    }
+
+    body {
+        background: #ffffff !important;
+        color: #000000 !important;
+        font-size: 11pt;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* Hide non-printable elements */
+    .navbar,
+    .hero-section,
+    .search-card-wrapper,
+    .empty-state-card,
+    .result-not-found,
+    .site-footer,
+    .modal-overlay,
+    .no-print,
+    .print-actions {
+        display: none !important;
+    }
+
+    /* Marksheet Full Page Layout */
+    .result-card {
+        border: 2px solid #000000 !important;
+        box-shadow: none !important;
+        padding: 20px !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        background: #ffffff !important;
+        page-break-inside: avoid;
+    }
+
+    .card-header-bar {
+        border-bottom: 2px solid #000000 !important;
+        padding-bottom: 12px !important;
+        margin-bottom: 16px !important;
+    }
+
+    .board-title {
+        font-size: 16pt !important;
+        color: #000000 !important;
+    }
+
+    .board-subtitle {
+        font-size: 9pt !important;
+        color: #333333 !important;
+    }
+
+    .exam-title {
+        font-size: 11pt !important;
+        color: #000000 !important;
+        font-weight: bold !important;
+    }
+
+    .status-banner {
+        border: 1.5px solid #000000 !important;
+        background-color: #f3f4f6 !important;
+        padding: 10px 14px !important;
+        margin-bottom: 16px !important;
+    }
+
+    .status-value {
+        color: #000000 !important;
+        font-size: 13pt !important;
+    }
+
+    .student-info-grid {
+        background: #fafafa !important;
+        border: 1px solid #cccccc !important;
+        padding: 12px 14px !important;
+        margin-bottom: 18px !important;
+    }
+
+    .info-item {
+        font-size: 10pt !important;
+    }
+
+    .marksheet-table {
+        border: 1.5px solid #000000 !important;
+    }
+
+    .marksheet-table th {
+        background-color: #e5e7eb !important;
+        color: #000000 !important;
+        border: 1px solid #999999 !important;
+        padding: 8px 10px !important;
+        font-size: 9.5pt !important;
+    }
+
+    .marksheet-table td {
+        border: 1px solid #cccccc !important;
+        padding: 7px 10px !important;
+        font-size: 9.5pt !important;
+    }
+
+    .referred-section {
+        border: 1.5px solid #000000 !important;
+        background: #fdfdfd !important;
+        padding: 12px 14px !important;
+        margin-bottom: 18px !important;
+    }
+
+    .subject-cards-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px !important;
+    }
+
+    .subject-card {
+        border: 1px solid #000000 !important;
+        padding: 8px 10px !important;
+        background: #ffffff !important;
+    }
+
+    .print-only {
+        display: flex !important;
+    }
+
+    .signature-row {
+        display: flex !important;
+        justify-content: space-between !important;
+        margin-top: 50px !important;
+        padding-top: 10px !important;
+    }
+
+    .sig-col {
+        text-align: center;
+        width: 28%;
+    }
+
+    .sig-line {
+        border-top: 1px dashed #000000;
+        margin-bottom: 6px;
+    }
+
+    .sig-col span {
+        font-size: 8.5pt;
+        color: #333333;
+    }
+}

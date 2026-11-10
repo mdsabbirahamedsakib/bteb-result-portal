@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTEB Result & Education Portal | বাংলাদেশ কারিগরি শিক্ষা বোর্ড</title>
+    <meta name="description" content="বাংলাদেশ কারিগরি শিক্ষা বোর্ডের পলিটেকনিক শিক্ষার্থীদের জন্য আধুনিক রেজাল্ট সার্চ ইঞ্জিন ও শিক্ষা পোর্টাল">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/print.css" media="print">
+    <!-- Google Fonts for Bengali -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <!-- ================= Top Navbar ================= -->
+    <header class="navbar no-print">
+        <div class="container">
+            <a href="index.html" class="nav-brand">
+                <div class="logo-badge">🎓</div>
+                <div class="brand-text">
+                    <h1 id="brandPortalTitle">BTEB Education Portal</h1>
+                    <p>বাংলাদেশ কারিগরি শিক্ষা বোর্ড</p>
+                </div>
+            </a>
+
+            <!-- Modular Navigation Menu -->
+            <nav>
+                <ul class="nav-menu">
+                    <li>
+                        <a href="index.html" class="nav-link active" id="navLinkResult">
+                            <span>🎓 রেজাল্ট (Result)</span>
+                            <span class="nav-badge" id="badgeResult" style="display:none;">Active</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="materials.html?cat=book" class="nav-link" id="navLinkBooks">
+                            <span>📚 বই ও সিলেবাস</span>
+                            <span class="nav-badge" id="badgeBooks">Active</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="materials.html?cat=note" class="nav-link" id="navLinkNotes">
+                            <span>📝 হ্যান্ডনোটস</span>
+                            <span class="nav-badge" id="badgeNotes">Active</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="materials.html?cat=suggestion" class="nav-link" id="navLinkSuggestions">
+                            <span>🎯 সাজেশন</span>
+                            <span class="nav-badge" id="badgeSuggestions">Active</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="nav-actions">
+                <button type="button" class="theme-toggle-btn no-print" id="themeToggleBtn" title="ডার্ক / লাইট মোড পরিবর্তন করুন">
+                    <span id="themeIcon">🌙</span>
+                </button>
+                <a href="admin.html" class="btn btn-admin" style="text-decoration:none">
+                    ⚙️ Admin Panel
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Top Announcement Notice Bar (Controlled by Admin Settings) -->
+    <div id="siteNoticeBar" class="hidden no-print" style="background:#ecfdf5;border-bottom:1px solid #a7f3d0;padding:8px 0;font-size:0.88rem;color:#065f46;">
+        <div class="container" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-weight:700;">📢</span>
+                <span id="siteNoticeText" style="font-weight:600;">ডিপ্লোমা ইন ইঞ্জিনিয়ারিং পরীক্ষা ফলাফল ও নতুন সেমিস্টারের বই-সাজেশন আপডেট করা হয়েছে।</span>
+            </div>
+            <a href="materials.html" style="color:#047857;font-weight:700;text-decoration:none;font-size:0.82rem;">
+                ডিজিটাল লাইব্রেরি দেখুন &rarr;
+            </a>
+        </div>
+    </div>
+
+    <!-- Maintenance Banner (shown when server is OFF) -->
+    <div class="maintenance-banner hidden no-print" id="maintenanceBanner">
+        <div class="container">
+            <div class="maintenance-banner-inner">
+                <span class="maintenance-icon">🔧</span>
+                <div class="maintenance-text">
+                    <strong>রেজাল্ট সার্ভার সাময়িকভাবে বন্ধ আছে</strong>
+                    <p id="maintenanceBannerMsg">রেজাল্ট আপলোডের কাজ চলছে, কিছুক্ষণ পর চেষ্টা করুন।</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= Main Content Container ================= -->
+    <main class="container">
+        
+        <!-- Hero Title -->
+        <section class="hero-section no-print">
+            <h2 class="hero-title">ডিপ্লোমা ইন ইঞ্জিনিয়ারিং রেজাল্ট সার্চ ইঞ্জিন</h2>
+            <p class="hero-subtitle">BTEB অফিসিয়াল পিডিএফ থেকে নির্ভুলভাবে সকল সেমিস্টারের রেজাল্ট, জিপিএ ও রেফার্ড বিষয় দেখুন</p>
+        </section>
+
+        <!-- Search Box Card -->
+        <section class="search-card-wrapper no-print" id="searchSection">
+            <div class="search-card">
+                <form id="searchForm">
+                    <div class="search-form-grid">
+                        <div class="form-group">
+                            <label for="rollInput" class="form-label">রোল নম্বর (Roll Number):</label>
+                            <input 
+                                type="text" 
+                                id="rollInput" 
+                                class="form-input" 
+                                placeholder="যেমন: 100001 বা আপনার রোল নম্বর" 
+                                autocomplete="off"
+                                required
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label for="semesterSelect" class="form-label">সেমিস্টার (Semester):</label>
+                            <select id="semesterSelect" class="form-select">
+                                <option value="">সকল সেমিস্টার (All)</option>
+                                <option value="1">১ম সেমিস্টার (1st)</option>
+                                <option value="2">২য় সেমিস্টার (2nd)</option>
+                                <option value="3">৩য় সেমিস্টার (3rd)</option>
+                                <option value="4">৪র্থ সেমিস্টার (4th)</option>
+                                <option value="5" selected>৫ম সেমিস্টার (5th)</option>
+                                <option value="6">৬ষ্ঠ সেমিস্টার (6th)</option>
+                                <option value="7">৭ম সেমিস্টার (7th)</option>
+                                <option value="8">৮ম সেমিস্টার (8th)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="regulationSelect" class="form-label">প্রবিধান (Regulation):</label>
+                            <select id="regulationSelect" class="form-select">
+                                <option value="2022" selected>প্রবিধান ২০২২</option>
+                                <option value="2016">প্রবিধান ২০১৬</option>
+                                <option value="2010">প্রবিধান ২০১০</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary search-submit-btn" id="searchBtn">
+                            🔍 রেজাল্ট দেখুন
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Quick Test Demo Pills -->
+                <div class="quick-demo-bar">
+                    <span class="quick-demo-label">পরীক্ষা করার জন্য ডেমো রোল:</span>
+                    <div class="demo-pills-list" id="quickDemoPills"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- High-Performance Skeleton Loading Shimmer (During Search) -->
+        <div id="skeletonLoader" class="skeleton-container hidden no-print">
+            <div class="skeleton-box skeleton-header"></div>
+            <div class="skeleton-grid">
+                <div class="skeleton-box skeleton-info"></div>
+                <div class="skeleton-box skeleton-info"></div>
+                <div class="skeleton-box skeleton-info"></div>
+                <div class="skeleton-box skeleton-info"></div>
+            </div>
+            <div class="skeleton-box skeleton-table"></div>
+        </div>
+
+        <!-- Result Container (Dynamic Marksheet) -->
+        <div id="resultContainer" class="hidden"></div>
+
+        <!-- Initial Welcome / Feature Highlights (Hidden when result is shown) -->
+        <section class="empty-state-card no-print" id="emptyState">
+            <div class="empty-icon">📋</div>
+            <h3 style="font-size: 1.3rem; font-weight: 700; color: #0f172a; margin-bottom: 8px;">
+                উপরে রোল নম্বর লিখে "রেজাল্ট দেখুন" বাটনে ক্লিক করুন
+            </h3>
+            <p style="color: #64748b; font-size: 0.95rem; max-width: 600px; margin: 0 auto;">
+                অথবা দ্রুত পরীক্ষা করতে উপরের রঙিন নমুনা রোলগুলোতে (100001, 100002, 100003, 100004, 100005) ক্লিক করুন।
+            </p>
+
+            <div class="features-grid">
+                <a href="admin.html" class="feature-box" style="text-decoration:none;color:inherit;">
+                    <h4>⚡ স্মার্ট পিডিএফ পার্সার ও আপলোডার</h4>
+                    <p>পিডিএফ থেকে কপি করা টেক্সট স্বয়ংক্রিয়ভাবে পার্স হয়। অ্যাডমিন প্যানেল থেকে যেকোনো সময় নতুন রেজাল্ট শিট যোগ করা যায়।</p>
+                </a>
+                <a href="materials.html?cat=book" class="feature-box" style="text-decoration:none;color:inherit;">
+                    <h4>📚 ডিজিটাল লাইব্রেরি ও নোটস</h4>
+                    <p>ডিপ্লোমার সকল সেমিস্টারের পাঠ্যবই, অধ্যায়ভিত্তিক হ্যান্ডনোটস এবং লেকচার শিট সম্পূর্ণ ফ্রিতে পড়তে ও ডাউনলোড করতে পারবেন।</p>
+                </a>
+                <a href="materials.html?cat=suggestion" class="feature-box" style="text-decoration:none;color:inherit;">
+                    <h4>🎯 বোর্ড ফাইনাল সুপার সাজেশন</h4>
+                    <p>পরীক্ষার শতভাগ প্রস্তুতি নেওয়ার জন্য অভিজ্ঞ শিক্ষকদের তৈরি বিশেষ সাজেশন ও গুরুত্বপূর্ণ প্রশ্নাবলি সংরক্ষিত রয়েছে।</p>
+                </a>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Coming Soon Modal (Used when any menu is toggled OFF by admin) -->
+    <div class="modal-overlay hidden" id="comingSoonModal">
+        <div class="modal-content" style="max-width: 480px; text-align: center;">
+            <div class="modal-body" style="padding: 36px 24px;">
+                <div style="font-size: 48px; margin-bottom: 14px;">🚀</div>
+                <h3 id="comingSoonTitle" style="font-size: 1.35rem; font-weight: 800; color: #0f172a; margin-bottom: 10px;">
+                    শীঘ্রই আসছে!
+                </h3>
+                <p id="comingSoonDesc" style="color: #64748b; font-size: 0.95rem; line-height: 1.7; margin-bottom: 24px;">
+                    অ্যাডমিন প্যানেল থেকে এই ফিচারটি সাময়িকভাবে বন্ধ রাখা হয়েছে। শীঘ্রই এটি সক্রিয় করা হবে।
+                </p>
+                <button type="button" class="btn btn-primary" id="closeComingSoonBtn" style="min-width: 140px;">
+                    ঠিক আছে
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Site Footer -->
+    <footer class="site-footer no-print">
+        <div class="container">
+            <p><strong>BTEB Result & Education Portal</strong> — পলিটেকনিক শিক্ষার্থীদের জন্য একটি উন্মুক্ত প্ল্যাটফর্ম</p>
+            <p style="margin-top: 6px; font-size: 0.8rem; color: #94a3b8;">
+                বাংলাদেশ কারিগরি শিক্ষা বোর্ড (BTEB) এর ডিপ্লোমা ইন ইঞ্জিনিয়ারিং শিক্ষার্থীদের সহায়তায় নির্মিত।
+            </p>
+        </div>
+    </footer>
+
+    <!-- Celebration Confetti Overlay Canvas -->
+    <canvas id="confettiCanvas" class="no-print"></canvas>
+
+    <!-- Scripts -->
+    <script src="js/parser.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

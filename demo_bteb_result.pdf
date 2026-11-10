@@ -1,0 +1,48 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 380 >>
+stream
+BT
+/F1 12 Tf
+50 720 Td
+(BANGLADESH TECHNICAL EDUCATION BOARD, DHAKA) Tj
+0 -25 Td
+(DIPLOMA IN ENGINEERING 5TH SEMESTER EXAMINATION) Tj
+0 -30 Td
+(732320 (gpa5: 3.06, gpa4: 3.20, gpa3: 2.63, gpa2: 2.96, gpa1: 3.53)) Tj
+0 -25 Td
+(600784 {gpa5: ref, gpa4: ref, ref_sub: 28542(T), 28544(T))) Tj
+0 -25 Td
+(800094 (25852(T), 25931(T), 26355(T,P), 26811(T))) Tj
+0 -25 Td
+(800027 (gpa6: 3.90, gpa5: 3.85, gpa4: 3.92, gpa3: 3.75, gpa2: 3.88, gpa1: 3.95)) Tj
+0 -25 Td
+(887904 (gpa5: ref, gpa4: 3.45, ref_sub: 66651(T))) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000234 00000 n 
+0000000305 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+740
+%%EOF

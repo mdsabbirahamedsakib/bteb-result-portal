@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>বই, নোটস ও সুপার সাজেশন | BTEB Education Portal</title>
+    <meta name="description" content="বাংলাদেশ কারিগরি শিক্ষা বোর্ডের ডিপ্লোমা ইন ইঞ্জিনিয়ারিং শিক্ষার্থীদের জন্য সকল সেমিস্টারের বই, হ্যান্ডনোটস ও সুপার সাজেশন">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/print.css" media="print">
+    <!-- Google Fonts for Bengali -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .filter-tab-btn.active {
+            background-color: var(--primary);
+            color: #ffffff;
+            border-color: var(--primary);
+        }
+        .mat-card {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.25s ease;
+        }
+        .mat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            border-color: #cbd5e1;
+        }
+        .mat-badge-book { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .mat-badge-note { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+        .mat-badge-suggestion { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+    </style>
+</head>
+<body>
+
+    <!-- ================= Top Navbar ================= -->
+    <header class="navbar no-print">
+        <div class="container">
+            <a href="index.html" class="nav-brand">
+                <div class="logo-badge">🎓</div>
+                <div class="brand-text">
+                    <h1>BTEB Education Portal</h1>
+                    <p>বাংলাদেশ কারিগরি শিক্ষা বোর্ড</p>
+                </div>
+            </a>
+
+            <!-- Modular Navigation Menu -->
+            <nav>
+                <ul class="nav-menu">
+                    <li>
+                        <a href="index.html" class="nav-link">
+                            <span>🎓 রেজাল্ট (Result)</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="materials.html?cat=book" class="nav-link" id="navLinkBooks">
+                            <span>📚 বই ও সিলেবাস</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="materials.html?cat=note" class="nav-link" id="navLinkNotes">
+                            <span>📝 হ্যান্ডনোটস</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="materials.html?cat=suggestion" class="nav-link" id="navLinkSuggestions">
+                            <span>🎯 সাজেশন</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="nav-actions">
+                <button type="button" class="theme-toggle-btn no-print" id="themeToggleBtn" title="ডার্ক / লাইট মোড পরিবর্তন করুন">
+                    <span id="themeIcon">🌙</span>
+                </button>
+                <a href="admin.html" class="btn btn-admin" style="text-decoration:none">
+                    ⚙️ Admin Panel
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Notice Bar (Dynamically updated from Site Settings) -->
+    <div id="noticeBarContainer" class="hidden" style="background:#ecfdf5;border-bottom:1px solid #a7f3d0;padding:10px 0;font-size:0.88rem;color:#065f46;">
+        <div class="container" style="display:flex;align-items:center;gap:10px;">
+            <span id="noticeBarText" style="font-weight:600;"></span>
+        </div>
+    </div>
+
+    <!-- ================= Main Content Container (with 60fps Entrance Animation) ================= -->
+    <main class="container animate-slide-up" style="padding-top:24px;padding-bottom:50px;">
+        
+        <!-- Hero Header -->
+        <div style="text-align:center;margin-bottom:26px;">
+            <h2 id="pageHeading" style="font-size:1.85rem;font-weight:800;color:var(--secondary);margin-bottom:6px;">
+                📚 পলিটেকনিক ডিজিটাল লাইব্রেরি ও স্টাডি মেটেরিয়ালস
+            </h2>
+            <p style="color:var(--text-muted);font-size:0.95rem;max-width:680px;margin:0 auto;">
+                ডিপ্লোমা ইন ইঞ্জিনিয়ারিংয়ের সকল সেমিস্টারের পাঠ্যবই, শর্ট হ্যান্ডনোটস এবং বোর্ড ফাইনাল পরীক্ষার সুপার সাজেশন সম্পূর্ণ বিনামূল্যে সংগ্রহ করুন।
+            </p>
+        </div>
+
+        <!-- Filter Bar & Search Card -->
+        <div style="background:#ffffff;border:1px solid var(--border-color);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow-sm);margin-bottom:26px;">
+            
+            <!-- Category Tabs -->
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--border-color);padding-bottom:14px;">
+                <button type="button" class="btn btn-outline filter-tab-btn active" data-cat="all" onclick="filterByCategory('all')">
+                    🌟 সকল মেটেরিয়ালস
+                </button>
+                <button type="button" class="btn btn-outline filter-tab-btn" data-cat="book" onclick="filterByCategory('book')">
+                    📚 পাঠ্যবই ও সিলেবাস (Books)
+                </button>
+                <button type="button" class="btn btn-outline filter-tab-btn" data-cat="note" onclick="filterByCategory('note')">
+                    📝 হ্যান্ডনোটস ও শিট (Notes)
+                </button>
+                <button type="button" class="btn btn-outline filter-tab-btn" data-cat="suggestion" onclick="filterByCategory('suggestion')">
+                    🎯 সুপার সাজেশন (Suggestions)
+                </button>
+            </div>
+
+            <!-- Filters Grid -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:14px;align-items:flex-end;">
+                <div class="form-group">
+                    <label class="form-label">সেমিস্টার (Semester):</label>
+                    <select id="filterSemester" class="form-select" onchange="applyFilters()">
+                        <option value="">সকল সেমিস্টার (All)</option>
+                        <option value="1">১ম সেমিস্টার</option>
+                        <option value="2">২য় সেমিস্টার</option>
+                        <option value="3">৩য় সেমিস্টার</option>
+                        <option value="4">৪র্থ সেমিস্টার</option>
+                        <option value="5">৫ম সেমিস্টার</option>
+                        <option value="6">৬ষ্ঠ সেমিস্টার</option>
+                        <option value="7">৭ম সেমিস্টার</option>
+                        <option value="8">৮ম সেমিস্টার</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">টেকনোলজি (Technology):</label>
+                    <select id="filterTechnology" class="form-select" onchange="applyFilters()">
+                        <option value="">সকল টেকনোলজি (All)</option>
+                        <option value="Computer">কম্পিউটার (CST)</option>
+                        <option value="Civil">সিভিল (Civil)</option>
+                        <option value="Electrical">ইলেকট্রিক্যাল (Electrical)</option>
+                        <option value="Mechanical">মেকানিক্যাল (Mechanical)</option>
+                        <option value="Electronics">ইলেকট্রনিক্স (Electronics)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="grid-column:span 2;">
+                    <label class="form-label">সার্চ করুন (Search by Title or Keyword):</label>
+                    <input 
+                        type="text" 
+                        id="filterSearch" 
+                        class="form-input" 
+                        placeholder="যেমন: Microprocessor, Data Communication বা সাজেশন..." 
+                        oninput="applyFilters()"
+                    />
+                </div>
+            </div>
+        </div>
+
+        <!-- Materials Count Badge -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <span id="resultsCountText" style="font-size:0.9rem;font-weight:600;color:var(--text-muted);">
+                লোড হচ্ছে...
+            </span>
+            <a href="admin.html#tab-materials" class="btn btn-outline" style="font-size:0.8rem;padding:6px 12px;text-decoration:none;">
+                + নতুন বই বা সাজেশন পোস্ট করুন (অ্যাডমিন)
+            </a>
+        </div>
+
+        <!-- Materials Grid Container -->
+        <div id="materialsGrid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:18px;">
+            <!-- Populated dynamically by JS -->
+        </div>
+
+    </main>
+
+    <!-- Material Details Modal -->
+    <div class="modal-overlay hidden" id="materialModal">
+        <div class="modal-content" style="max-width:620px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalMatTitle">মেটেরিয়াল বিবরণ</h3>
+                <button type="button" class="modal-close-btn" onclick="closeMaterialModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="line-height:1.7;">
+                <div id="modalMatCoverWrap" class="hidden" style="margin:-10px -10px 14px -10px;max-height:220px;overflow:hidden;border-radius:8px;">
+                    <img id="modalMatCoverImg" src="" alt="Cover" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;">
+                </div>
+                <div style="display:flex;gap:8px;margin-bottom:12px;" id="modalMatBadges"></div>
+                <p id="modalMatDesc" style="color:#475569;font-size:0.95rem;margin-bottom:14px;font-weight:500;"></p>
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-bottom:16px;">
+                    <h5 style="font-size:0.85rem;font-weight:700;color:#0f172a;margin-bottom:6px;">বিস্তারিত তথ্য ও অধ্যায় সূচি:</h5>
+                    <div id="modalMatContent" style="font-size:0.88rem;color:#334155;white-space:pre-line;"></div>
+                </div>
+                <div style="font-size:0.82rem;color:#64748b;">
+                    <strong>উৎস / লেখক:</strong> <span id="modalMatAuthor"></span>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content:space-between;">
+                <button type="button" class="btn btn-outline" onclick="closeMaterialModal()">বন্ধ করুন</button>
+                <a id="modalMatDownloadBtn" href="#" target="_blank" class="btn btn-primary" style="text-decoration:none;">
+                    📥 পড়ুন / ডাউনলোড লিংক খুলুন
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Site Footer -->
+    <footer class="site-footer no-print">
+        <div class="container">
+            <p><strong>BTEB Result & Education Portal</strong> — পলিটেকনিক শিক্ষার্থীদের জন্য উন্মুক্ত শিক্ষা প্ল্যাটফর্ম</p>
+            <p style="margin-top:6px;font-size:0.8rem;color:#94a3b8;">
+                ডিপ্লোমা ইন ইঞ্জিনিয়ারিং শিক্ষার্থীদের সহায়তায় সার্বিক কারিগরি তথ্য ও রিসোর্স।
+            </p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/parser.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/storage.js"></script>
+    <script>
+        let currentCategory = 'all';
+
+        document.addEventListener('DOMContentLoaded', function () {
+            // Check query param for category (e.g., ?cat=book)
+            const urlParams = new URLSearchParams(window.location.search);
+            const catParam = urlParams.get('cat');
+            if (catParam && ['book', 'note', 'suggestion'].includes(catParam)) {
+                currentCategory = catParam;
+                updateTabUI(catParam);
+            }
+
+            // Notice bar
+            const settings = BTEBStorage.getSiteSettings();
+            if (settings.showNoticeBar && settings.noticeText) {
+                const nb = document.getElementById('noticeBarContainer');
+                const nt = document.getElementById('noticeBarText');
+                nt.textContent = settings.noticeText;
+                nb.classList.remove('hidden');
+            }
+
+            // Apply menu highlight
+            highlightCurrentNav();
+
+            applyFilters();
+        });
+
+        function highlightCurrentNav() {
+            if (currentCategory === 'book') document.getElementById('navLinkBooks').classList.add('active');
+            else if (currentCategory === 'note') document.getElementById('navLinkNotes').classList.add('active');
+            else if (currentCategory === 'suggestion') document.getElementById('navLinkSuggestions').classList.add('active');
+        }
+
+        function filterByCategory(cat) {
+            currentCategory = cat;
+            updateTabUI(cat);
+            applyFilters();
+        }
+
+        function updateTabUI(cat) {
+            document.querySelectorAll('.filter-tab-btn').forEach(btn => {
+                if (btn.getAttribute('data-cat') === cat) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+        }
+
+        function applyFilters() {
+            const allMaterials = BTEBStorage.getAllMaterials();
+            const semester = document.getElementById('filterSemester').value;
+            const technology = document.getElementById('filterTechnology').value;
+            const search = document.getElementById('filterSearch').value.toLowerCase().trim();
+
+            const filtered = allMaterials.filter(item => {
+                // Category match
+                if (currentCategory !== 'all' && item.category !== currentCategory) return false;
+                // Semester match
+                if (semester && String(item.semester) !== semester) return false;
+                // Technology match
+                if (technology && item.technology !== 'All' && item.technology !== technology) return false;
+                // Search match
+                if (search) {
+                    const matchTitle = (item.title || '').toLowerCase().includes(search);
+                    const matchDesc = (item.description || '').toLowerCase().includes(search);
+                    const matchAuthor = (item.author || '').toLowerCase().includes(search);
+                    if (!matchTitle && !matchDesc && !matchAuthor) return false;
+                }
+                return true;
+            });
+
+            renderMaterials(filtered);
+        }
+
+        function renderMaterials(list) {
+            const grid = document.getElementById('materialsGrid');
+            const countText = document.getElementById('resultsCountText');
+            countText.innerText = `মোট ${list.length}টি রিসোর্স পাওয়া গেছে`;
+
+            if (list.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column: 1 / -1; background:#ffffff; border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:40px 20px; text-align:center;">
+                        <div style="font-size:42px;margin-bottom:10px;">🔍</div>
+                        <h4 style="font-size:1.15rem;font-weight:700;color:var(--secondary);margin-bottom:6px;">কোনো রিসোর্স পাওয়া যায়নি</h4>
+                        <p style="color:var(--text-muted);font-size:0.9rem;max-width:480px;margin:0 auto 16px;">
+                            আপনার ফিল্টারের সাথে মিলে এমন কোনো বই, নোটস বা সাজেশন পাওয়া যায়নি। অনুগ্রহ করে ফিল্টার পরিবর্তন করুন অথবা অ্যাডমিন থেকে নতুন যুক্ত করুন।
+                        </p>
+                        <button type="button" class="btn btn-outline" onclick="resetFilters()">সকল ফিল্টার রিসেট করুন</button>
+                    </div>
+                `;
+                return;
+            }
+
+            const semNames = { '1':'১ম', '2':'২য়', '3':'৩য়', '4':'৪র্থ', '5':'৫ম', '6':'৬ষ্ঠ', '7':'৭ম', '8':'৮ম' };
+            const catLabels = {
+                'book': { label: 'বই (Textbook)', class: 'mat-badge-book', icon: '📚' },
+                'note': { label: 'হ্যান্ডনোটস (Notes)', class: 'mat-badge-note', icon: '📝' },
+                'suggestion': { label: 'সুপার সাজেশন', class: 'mat-badge-suggestion', icon: '🎯' }
+            };
+
+            let html = '';
+            list.forEach(item => {
+                const catInfo = catLabels[item.category] || { label: 'মেটেরিয়াল', class: 'mat-badge-book', icon: '📄' };
+                const semLabel = semNames[item.semester] ? (semNames[item.semester] + ' সেমিস্টার') : (item.semester ? item.semester + ' সেমিস্টার' : 'সকল পর্ব');
+
+                html += `
+                    <div class="mat-card">
+                        <div>
+                            ${item.coverUrl ? `
+                                <div style="margin:-20px -20px 14px -20px;max-height:160px;overflow:hidden;border-top-left-radius:var(--radius-md);border-top-right-radius:var(--radius-md);">
+                                    <img src="${item.coverUrl}" alt="${item.title}" style="width:100%;height:140px;object-fit:cover;" onerror="this.parentElement.style.display='none'">
+                                </div>
+                            ` : ''}
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px;">
+                                <span class="tag ${catInfo.class}" style="font-weight:700;">
+                                    ${catInfo.icon} ${catInfo.label}
+                                </span>
+                                <span class="tag tag-muted" style="font-size:0.75rem;">
+                                    ${semLabel}
+                                </span>
+                            </div>
+
+                            <h4 style="font-size:1.05rem;font-weight:700;color:var(--secondary);margin-bottom:8px;line-height:1.4;">
+                                ${item.title}
+                            </h4>
+
+                            <p style="color:var(--text-muted);font-size:0.86rem;line-height:1.55;margin-bottom:14px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">
+                                ${item.description || 'কোনো বিবরণ নেই'}
+                            </p>
+                        </div>
+
+                        <div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:1px solid #f1f5f9;margin-bottom:12px;font-size:0.78rem;color:#64748b;">
+                                <span>🛠️ ${item.technology || 'সকল টেকনোলজি'}</span>
+                                <span>✍️ ${item.author || 'বিটিইবি টিম'}</span>
+                            </div>
+
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                                <button type="button" class="btn btn-outline" style="padding:8px;font-size:0.82rem;" onclick="openMaterialDetails('${item.id}')">
+                                    👁️ বিস্তারিত
+                                </button>
+                                <a href="${item.fileUrl || '#'}" target="_blank" class="btn btn-primary" style="padding:8px;font-size:0.82rem;text-decoration:none;">
+                                    📥 ডাউনলোড / পড়ুন
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            grid.innerHTML = html;
+        }
+
+        function resetFilters() {
+            currentCategory = 'all';
+            updateTabUI('all');
+            document.getElementById('filterSemester').value = '';
+            document.getElementById('filterTechnology').value = '';
+            document.getElementById('filterSearch').value = '';
+            applyFilters();
+        }
+
+        function openMaterialDetails(id) {
+            const all = BTEBStorage.getAllMaterials();
+            const item = all.find(m => m.id === id);
+            if (!item) return;
+
+            document.getElementById('modalMatTitle').innerText = item.title;
+            document.getElementById('modalMatDesc').innerText = item.description || '';
+            document.getElementById('modalMatContent').innerText = item.content || item.description || 'কোনো অতিরিক্ত কনটেন্ট নেই।';
+            document.getElementById('modalMatAuthor').innerText = item.author || 'অজানা';
+            document.getElementById('modalMatDownloadBtn').href = item.fileUrl || '#';
+
+            const coverWrap = document.getElementById('modalMatCoverWrap');
+            const coverImg = document.getElementById('modalMatCoverImg');
+            if (coverWrap && coverImg) {
+                if (item.coverUrl) {
+                    coverImg.src = item.coverUrl;
+                    coverWrap.classList.remove('hidden');
+                } else {
+                    coverWrap.classList.add('hidden');
+                }
+            }
+
+            const catMap = {
+                'book': '📚 বই',
+                'note': '📝 নোটস',
+                'suggestion': '🎯 সাজেশন'
+            };
+
+            document.getElementById('modalMatBadges').innerHTML = `
+                <span class="tag tag-success">${catMap[item.category] || item.category}</span>
+                <span class="tag tag-muted">${item.semester} সেমিস্টার</span>
+                <span class="tag tag-warning">${item.technology}</span>
+            `;
+
+            document.getElementById('materialModal').classList.remove('hidden');
+        }
+
+        function closeMaterialModal() {
+            document.getElementById('materialModal').classList.add('hidden');
+        }
+
+        window.addEventListener('click', function(e) {
+            const m = document.getElementById('materialModal');
+            if (e.target === m) closeMaterialModal();
+        });
+
+        // Theme Switcher
+        (function() {
+            var themeToggleBtn = document.getElementById('themeToggleBtn');
+            var themeIcon = document.getElementById('themeIcon');
+            var savedTheme = localStorage.getItem('bteb_theme') || 
+                ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+            function applyTheme(t) {
+                document.documentElement.setAttribute('data-theme', t);
+                if (themeIcon) themeIcon.textContent = t === 'dark' ? '☀️' : '🌙';
+            }
+            applyTheme(savedTheme);
+            if (themeToggleBtn) {
+                themeToggleBtn.addEventListener('click', function() {
+                    var cur = document.documentElement.getAttribute('data-theme') || 'light';
+                    var next = cur === 'dark' ? 'light' : 'dark';
+                    applyTheme(next);
+                    localStorage.setItem('bteb_theme', next);
+                });
+            }
+        })();
+    </script>
+</body>
+</html>
