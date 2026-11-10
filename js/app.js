@@ -204,26 +204,50 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     /**
-     * Render Active Database Status Indicator (Demo rolls removed)
+     * Render Active Database Status Indicator & Clickable Sample Test Rolls
      */
     function renderQuickDemoPills() {
         if (!quickDemoPills) return;
         quickDemoPills.innerHTML = '';
 
-        var stats = (typeof BTEBStorage !== 'undefined') ? BTEBStorage.getTotalStats() : { totalStudents: 0 };
-        var pillsContainer = document.getElementById('demoPillsContainer');
+        var totalCount = 0;
+        var sampleRolls = [];
 
-        if (stats.totalStudents > 0) {
-            var infoBadge = document.createElement('div');
-            infoBadge.className = 'database-live-badge';
-            infoBadge.style.cssText = 'background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; margin-top: 4px;';
-            infoBadge.innerHTML = '<span>🟢</span> <span>লাইভ ডাটাবেস: <strong>' + stats.totalStudents.toLocaleString() + '</strong> জন শিক্ষার্থীর বোর্ড রেজাল্ট সক্রিয় আছে</span>';
-            quickDemoPills.appendChild(infoBadge);
-            if (pillsContainer) pillsContainer.style.display = 'block';
-        } else {
-            if (pillsContainer) pillsContainer.style.display = 'none';
+        if (typeof BTEBResultsDatabase !== 'undefined') {
+            sampleRolls = BTEBResultsDatabase.getAllRolls();
+            totalCount = BTEBResultsDatabase.getCount();
         }
+
+        if (typeof BTEBStorage !== 'undefined') {
+            var stats = BTEBStorage.getTotalStats();
+            if (stats.totalStudents > totalCount) {
+                totalCount = stats.totalStudents;
+            }
+        }
+
+        var pillsContainer = document.getElementById('demoPillsContainer');
+        if (pillsContainer) pillsContainer.style.display = 'block';
+
+        var html = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;">';
+        html += '<span style="font-size:13px;color:#10b981;font-weight:600;">🟢 লাইভ ডেটাবেস সক্রিয়: <strong>' + totalCount + '</strong> জন শিক্ষার্থীর বোর্ড রেজাল্ট প্রস্তুত।</span>';
+        
+        if (sampleRolls.length > 0) {
+            html += '<span style="font-size:12.5px;color:var(--text-muted);margin-left:4px;">টেস্ট করতে ক্লিক করুন:</span>';
+            var displayPills = sampleRolls.slice(0, 6);
+            displayPills.forEach(function (r) {
+                html += '<button type="button" class="btn btn-outline" style="cursor:pointer;padding:2px 10px;font-size:12px;border-radius:14px;background:rgba(16,185,129,0.06);border-color:rgba(16,185,129,0.3);color:#059669;font-weight:600;" onclick="window.quickSearchRoll(\'' + r + '\')">#' + r + '</button>';
+            });
+        }
+        html += '</div>';
+        quickDemoPills.innerHTML = html;
     }
+
+    window.quickSearchRoll = function (roll) {
+        if (rollInput) {
+            rollInput.value = roll;
+            executeSearch(roll);
+        }
+    };
 
     /**
      * High-Performance Instant Search Engine with O(1) Lookup & Skeleton Loading
@@ -255,16 +279,21 @@ document.addEventListener('DOMContentLoaded', function () {
 
         var t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
 
-        // 1. Check IndexedDB / In-Memory Storage First
+        // 1. Check Pre-bundled Project Database
         var student = null;
-        if (typeof BTEBStorage !== 'undefined') {
+        if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getStudent) {
+            student = BTEBResultsDatabase.getStudent(roll);
+        }
+
+        // 2. Check BTEBStorage (In-Memory + Compact LocalStorage + IndexedDB)
+        if (!student && typeof BTEBStorage !== 'undefined') {
             student = BTEBStorage.getStudent(roll);
             if (!student && BTEBStorage.getStudentAsync) {
                 student = await BTEBStorage.getStudentAsync(roll);
             }
         }
 
-        // 2. Fallback to BTEBParser in-memory index
+        // 3. Fallback to BTEBParser in-memory index
         if (!student && typeof BTEBParser !== 'undefined') {
             var lookup = BTEBParser.instantLookup('', roll, selectedSemester);
             if (lookup && lookup.student) {
@@ -291,29 +320,48 @@ document.addEventListener('DOMContentLoaded', function () {
                     launchCelebrationConfetti();
                 }
             }
-        }, 120);
+        }, 80);
     }
 
     /**
      * Render Professional Marksheet / Result Card with Visual GPA Progress & Animations
      */
     function renderResultCard(data, regulation, targetSemester, elapsedMs) {
+        if (!data) return;
         if (emptyState) emptyState.classList.add('hidden');
         resultContainer.classList.remove('hidden');
         resultContainer.className = 'animate-slide-up'; // 60fps GPU slide-up
 
-        var studentMeta = BTEBData.getStudentMeta(data.roll);
-        var cgpaData = BTEBParser.calculateCGPA(data.semesters, regulation);
+        var semesters = data.semesters || {};
+        var referredSubjects = data.referredSubjects || [];
+        var status = data.status || 'Passed';
+
+        var studentMeta = (typeof BTEBData !== 'undefined' && BTEBData.getStudentMeta) ? BTEBData.getStudentMeta(data.roll) : {
+            name: 'শিক্ষার্থী (রোল: ' + data.roll + ')',
+            institute: 'বাংলাদেশ কারিগরি শিক্ষা বোর্ড আওতাধীন পলিটেকনিক ইনস্টিটিউট',
+            technology: 'ডিপ্লোমা ইন ইঞ্জিনিয়ারিং',
+            session: 'বোর্ড পরীক্ষা সেশন',
+            regulation: regulation || '২০২২'
+        };
+
+        var cgpaData = null;
+        try {
+            if (typeof BTEBParser !== 'undefined' && BTEBParser.calculateCGPA) {
+                cgpaData = BTEBParser.calculateCGPA(semesters, regulation);
+            }
+        } catch (e) {
+            console.warn('CGPA calculation error:', e);
+        }
 
         var statusBadgeClass = 'badge-success';
         var statusIcon = '✓';
         var statusTitle = 'উত্তীর্ণ (Passed)';
 
-        if (data.status === 'Referred') {
+        if (status === 'Referred') {
             statusBadgeClass = 'badge-warning';
             statusIcon = '⚠';
-            statusTitle = 'রেফার্ড (Referred) - ' + data.referredSubjects.length + 'টি বিষয়';
-        } else if (data.status === 'Dropped Out') {
+            statusTitle = 'রেফার্ড (Referred) - ' + referredSubjects.length + 'টি বিষয়';
+        } else if (status === 'Dropped Out') {
             statusBadgeClass = 'badge-danger';
             statusIcon = '✕';
             statusTitle = 'ড্রপ আউট (Dropped Out / সেমিস্টার ড্রপ)';
@@ -387,7 +435,7 @@ document.addEventListener('DOMContentLoaded', function () {
         html += '      <tbody>';
 
         for (var s = 1; s <= 8; s++) {
-            var semData = data.semesters[s];
+            var semData = semesters[s];
             var gpaDisplay = '—';
             var semStatusBadge = '<span class="tag tag-muted">ফলাফল নেই</span>';
             var remarks = 'পরীক্ষা অনুষ্ঠিত হয়নি / রেকর্ড নেই';
@@ -441,25 +489,30 @@ document.addEventListener('DOMContentLoaded', function () {
         html += '  </div>';
 
         // Referred Subjects
-        if (data.referredSubjects && data.referredSubjects.length > 0) {
+        if (referredSubjects && referredSubjects.length > 0) {
             html += '<div class="referred-section">';
             html += '  <div class="referred-header">';
-            html += '    <h4 class="referred-title">⚠️ রেফার্ড / অকৃতকার্য বিষয়সমূহ (Referred Subjects - ' + data.referredSubjects.length + 'টি বিষয়)</h4>';
+            html += '    <h4 class="referred-title">⚠️ রেফার্ড / অকৃতকার্য বিষয়সমূহ (Referred Subjects - ' + referredSubjects.length + 'টি বিষয়)</h4>';
             html += '    <p class="referred-subtitle">BTEB প্রবিধান অনুযায়ী নিচে উল্লেখিত বিষয়সমূহে পরবর্তী সেমিস্টার পরীক্ষার সাথে পুনরায় পরীক্ষায় অংশগ্রহণ করতে হবে।</p>';
             html += '  </div>';
             html += '  <div class="subject-cards-grid">';
 
-            data.referredSubjects.forEach(function (sub) {
-                var subName = BTEBData.getSubjectName(sub.code);
-                html += '<div class="subject-card ' + sub.badgeClass + '">';
+            referredSubjects.forEach(function (sub) {
+                var subCode = sub.code || (typeof sub === 'string' ? sub : 'বিষয়');
+                var subTypeLabel = sub.typeLabel || 'তত্ত্বীয় (Theory)';
+                var badgeClass = sub.badgeClass || 'badge-warning';
+                var subType = sub.type || 'T';
+                var subName = BTEBData.getSubjectName(subCode);
+
+                html += '<div class="subject-card ' + badgeClass + '">';
                 html += '  <div class="sub-code-row">';
-                html += '    <span class="sub-code">' + sub.code + '</span>';
-                html += '    <span class="sub-type-badge">' + sub.typeLabel + '</span>';
+                html += '    <span class="sub-code">' + subCode + '</span>';
+                html += '    <span class="sub-type-badge">' + subTypeLabel + '</span>';
                 html += '  </div>';
                 html += '  <div class="sub-name">' + subName + '</div>';
                 html += '  <div class="sub-instruction">';
-                if (sub.type.includes('T')) html += '• তত্ত্বীয় (Theory) পরীক্ষা দিতে হবে ';
-                if (sub.type.includes('P')) html += '• ব্যবহারিক (Practical) পরীক্ষা দিতে হবে';
+                if (subType.includes('T')) html += '• তত্ত্বীয় (Theory) পরীক্ষা দিতে হবে ';
+                if (subType.includes('P')) html += '• ব্যবহারিক (Practical) পরীক্ষা দিতে হবে';
                 html += '  </div>';
                 html += '</div>';
             });

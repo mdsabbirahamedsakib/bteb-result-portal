@@ -373,15 +373,21 @@ const BTEBParser = (function () {
             addCandidate(match[1], unmaskSubjectParentheses(match[2]));
         }
 
-        // Pattern 3: Tabular / Multi-space layout: \b(ROLL)\b \s{2,} (GPA)
-        const pattern3 = /\b(\d{5,8})\b\s{2,}([2-4]\.\d{1,2})\b/g;
+        // Pattern 3: Tabular / Space / Newline layout: \b(ROLL)\b \s+ (GPA)
+        const pattern3 = /\b(\d{5,8})\b\s+([2-4]\.\d{1,2})\b/g;
         while ((match = pattern3.exec(masked)) !== null) {
             addCandidate(match[1], match[2]);
         }
 
-        // Pattern 4: Tabular referred layout: \b(ROLL)\b \s{2,} (SUBJECTS)
-        const pattern4 = /\b(\d{5,8})\b\s{2,}((?:(?:\d{4,6}(?:«[TPtp\s,]+»)?)[,\s]*)+)/g;
+        // Pattern 4: Tabular referred layout: \b(ROLL)\b \s+ (SUBJECTS)
+        const pattern4 = /\b(\d{5,8})\b\s+((?:(?:\d{4,6}(?:«[TPtp\s,]+»)?)[,\s]*)+)/g;
         while ((match = pattern4.exec(masked)) !== null) {
+            addCandidate(match[1], unmaskSubjectParentheses(match[2]));
+        }
+
+        // Pattern 5: Key-Value / Line-by-Line: Roll: 123456 ... GPA: 3.50
+        const pattern5 = /(?:Roll|রোল)\s*(?:No|নম্বর)?\s*[:=]?\s*(\d{5,8})[\s\S]{1,60}?(?:GPA|জিপিএ|Result|CGPA)\s*[:=]?\s*([1-4]\.\d{1,2}|[^\r\n]+)/gi;
+        while ((match = pattern5.exec(masked)) !== null) {
             addCandidate(match[1], unmaskSubjectParentheses(match[2]));
         }
 

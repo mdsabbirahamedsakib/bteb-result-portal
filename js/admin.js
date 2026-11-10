@@ -145,6 +145,7 @@ document.addEventListener('DOMContentLoaded', function () {
             savePublishBtn.innerHTML = '<span class="spinner-btn"></span> প্রসেসিং চলছে...';
 
             // Non-blocking chunk processing
+            var selectedSem = semesterSelect ? semesterSelect.value : '5';
             BTEBParser.parseInChunksAsync(
                 rawText,
                 function onProgress(prog) {
@@ -165,7 +166,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (cntDroppedRolls) cntDroppedRolls.textContent = prog.droppedCount.toLocaleString();
                     if (cntProcessTime) cntProcessTime.textContent = prog.elapsedMs + 'ms';
                 },
-                function onComplete(res) {
+                async function onComplete(res) {
                     if (res.total === 0) {
                         if (chunkProgressWrapper) chunkProgressWrapper.classList.add('hidden');
                         savePublishBtn.disabled = false;
@@ -183,12 +184,12 @@ document.addEventListener('DOMContentLoaded', function () {
                         progressStatusText.textContent = '✅ প্রসেসিং সম্পন্ন! মোট ' + res.total.toLocaleString() + 'টি রোল প্রসেস হয়েছে।';
                     }
                     if (progressSpeedText) {
-                        progressSpeedText.textContent = 'মোট সময়: ' + res.elapsedMs + 'ms | ওজোন সাইজ: ৮৫% অপ্টিমাইজড';
+                        progressSpeedText.textContent = 'মোট সময়: ' + res.elapsedMs + 'ms';
                     }
 
-                    // Save to LocalStorage with precomputed counts & lightweight optimized data
-                    var sheet = BTEBStorage.saveSheet({
-                        semester: semesterSelect.value,
+                    // Save to BTEBStorage & Database
+                    await BTEBStorage.saveSheetAsync({
+                        semester: selectedSem,
                         regulation: regulationSelect.value,
                         examYear: examYearInput.value,
                         rawText: rawText,
@@ -196,7 +197,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         passedCount: res.passedCount,
                         referredCount: res.referredCount,
                         droppedCount: res.droppedCount,
-                        optimizedData: res.optimizedData
+                        students: res.results
                     });
 
                     setTimeout(function () {
@@ -215,15 +216,16 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (cntProcessTime) cntProcessTime.textContent = res.elapsedMs + 'ms';
 
                         showToast(
-                            '✅ সফলভাবে সেভ হয়েছে! মোট ' + res.total.toLocaleString() + 'টি রোল অতি-হালকা Indexed JSON ফরম্যাটে সেভ করা হয়েছে। (উত্তীর্ণ: ' + res.passedCount + ', রেফার্ড: ' + res.referredCount + ', ড্রপ: ' + res.droppedCount + ')',
+                            '✅ সফলভাবে সেভ হয়েছে! মোট ' + res.total.toLocaleString() + 'টি রোল ডেটাবেসে সেভ করা হয়েছে। (উত্তীর্ণ: ' + res.passedCount + ', রেফার্ড: ' + res.referredCount + ', ড্রপ: ' + res.droppedCount + ')',
                             'success'
                         );
 
                         renderGlobalStats();
                         renderSavedSheets();
-                    }, 500);
+                    }, 400);
                 },
-                500 // 500 rolls per frame chunk
+                selectedSem,
+                400 // 400 rolls per frame chunk
             );
         });
     }

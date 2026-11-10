@@ -122,7 +122,18 @@ const BTEBStorage = (function () {
      * Load all saved students from LocalStorage & IndexedDB into memory on boot
      */
     async function initDB() {
-        // 1. Fast load from Compact LocalStorage
+        // 1. Fast load from pre-bundled Project Database
+        if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getDatabase) {
+            var bundled = BTEBResultsDatabase.getDatabase();
+            for (var br in bundled) {
+                cachedStudentsMap.set(br, bundled[br]);
+                if (typeof BTEBParser !== 'undefined' && BTEBParser.setStudent) {
+                    BTEBParser.setStudent(bundled[br]);
+                }
+            }
+        }
+
+        // 2. Fast load from Compact LocalStorage
         var compactDb = _read(KEYS.STUDENTS_COMPACT) || {};
         var rolls = Object.keys(compactDb);
         for (var i = 0; i < rolls.length; i++) {
@@ -135,7 +146,7 @@ const BTEBStorage = (function () {
             }
         }
 
-        // 2. Also sync from IndexedDB if available
+        // 3. Also sync from IndexedDB if available
         var db = await getDB();
         if (db) {
             try {
@@ -347,7 +358,16 @@ const BTEBStorage = (function () {
             return cachedStudentsMap.get(cleanRoll);
         }
 
-        // 2. Compact LocalStorage check
+        // 2. Pre-bundled Project Database check
+        if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getStudent) {
+            var bundled = BTEBResultsDatabase.getStudent(cleanRoll);
+            if (bundled) {
+                cachedStudentsMap.set(cleanRoll, bundled);
+                return bundled;
+            }
+        }
+
+        // 3. Compact LocalStorage check
         var compactDb = _read(KEYS.STUDENTS_COMPACT);
         if (compactDb && compactDb[cleanRoll]) {
             var st = compactDb[cleanRoll];
