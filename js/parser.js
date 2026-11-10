@@ -1,14 +1,14 @@
 /**
- * BTEB Result & Education Portal - Ultra-Fast Parser & O(1) Indexing Engine
+ * BTEB Result & Education Portal - Ultra-Fast Multi-Format Parser & O(1) Indexing Engine
  * Designed for 3-4 Lakh Polytechnic Students with Zero-Lag O(1) Hash Table Lookup.
  * 
  * Supports ALL Official BTEB PDF Result Formats:
- * 1. Standard BTEB PDF Passed Format: 732320 (3.52) or 732320 (3.52, 3.40)
- * 2. Multi-Semester GPA Format: 732320 (gpa5: 3.06, gpa4: 3.20, gpa3: 2.63)
- * 3. Referred Format: 600784 {28542(T), 28544(T)} or 600784 {gpa5: ref, ref_sub: 28542(T))
- * 4. Dropped Out / Semester Drop: 800094 (25852(T), 25931(T), 26355(T,P), 26811(T))
- * 5. Colon / Equal / Tabular Layout: 732320 : 3.52 or 732320   3.52
- * 6. Mismatched brackets: { ... ), ( ... }, [ ... ]
+ * 1. Standard Bracketed Format: 732320 (3.52), 732320 (3.52, 3.40), 732320 (gpa5: 3.52)
+ * 2. Referred Format: 600784 {28542(T), 28544(T)}, 600784 (28542(T)), 600784 [28542(T)]
+ * 3. Dropped Out / Semester Drop: 800094 (25852(T), 25931(T), 26355(T,P), 26811(T))
+ * 4. Colon / Dash / Equal: 732320 : 3.52, 732320 = 3.52, 732320 - 3.52
+ * 5. Tabular / Space-Separated: 732320   3.52   PASSED or 732320   28542(T)
+ * 6. Line-by-Line / Key-Value: Roll: 732320 \n GPA: 3.52
  * 7. Bengali numeral normalization: (০-৯ -> 0-9)
  */
 
@@ -95,7 +95,6 @@ const BTEBParser = (function () {
 
     /**
      * Parse the inner body content of a student entry
-     * Supports both explicit "gpa5: 3.50" AND standard BTEB PDF format "3.50"
      */
     function parseStudentBody(roll, rawBody, defaultSemester) {
         const body = (rawBody || '').trim();
@@ -105,7 +104,7 @@ const BTEBParser = (function () {
         let referredSubjects = [];
         let status = 'Passed';
         let statusBangla = 'উত্তীর্ণ';
-        let statusType = 'success'; // success, warning, danger
+        let statusType = 'success';
         let latestSemester = defSem;
 
         // 1. Check for explicit "gpa\d+:" pattern (e.g. gpa5: 3.06, gpa4: 3.20)
@@ -168,7 +167,6 @@ const BTEBParser = (function () {
                 }
             }
 
-            // Extract ref_sub list if any
             const refSubMatch = body.match(/ref_sub\s*[:=]\s*([^)\}\r\n]+)/i);
             if (refSubMatch) {
                 referredSubjects = parseSubjectCodes(refSubMatch[1]);
@@ -185,15 +183,11 @@ const BTEBParser = (function () {
                 statusType = 'success';
             }
         } else {
-            // 2. Standard BTEB PDF format without "gpa" keyword:
-            // e.g. "3.52", "3.80, 3.65", or subject codes "{25811(T), 25812(P)}"
+            // 2. Standard BTEB PDF format without "gpa" keyword
             referredSubjects = parseSubjectCodes(body);
-
-            // Match floating-point GPA numbers (typically between 2.00 and 4.00 in BTEB)
             const gpaMatches = body.match(/\b([2-4]\.\d{1,2})\b/g);
 
             if (referredSubjects.length > 0) {
-                // Contains referred subjects
                 if (referredSubjects.length >= 4 || /drop|fail|withheld/i.test(body)) {
                     status = 'Dropped Out';
                     statusBangla = 'ড্রপ আউট (সেমিস্টার ড্রপ)';
@@ -222,7 +216,6 @@ const BTEBParser = (function () {
                     };
                 }
             } else if (gpaMatches && gpaMatches.length > 0) {
-                // Valid GPA passed results (e.g. "3.52" or "3.52, 3.40")
                 status = 'Passed';
                 statusBangla = 'উত্তীর্ণ';
                 statusType = 'success';
@@ -255,7 +248,6 @@ const BTEBParser = (function () {
                     label: 'ড্রপ (Drop)'
                 };
             } else {
-                // Check if any decimal number exists
                 const floatMatch = body.match(/\b([1-4](?:\.\d+)?)\b/);
                 if (floatMatch && parseFloat(floatMatch[1]) >= 2.0) {
                     const pNum = parseFloat(floatMatch[1]);
@@ -296,13 +288,12 @@ const BTEBParser = (function () {
     }
 
     /**
-     * Search for a specific roll number inside raw BTEB text using regex
+     * Search for a specific roll number inside raw text
      */
     function findRoll(rawText, targetRoll, defaultSemester) {
         const cleanRoll = normalizeDigits(targetRoll);
         if (!cleanRoll) return null;
 
-        // Check in-memory index map first
         if (rollIndexMap.has(cleanRoll)) {
             return rollIndexMap.get(cleanRoll);
         }
@@ -312,26 +303,30 @@ const BTEBParser = (function () {
         const cleaned = cleanRawPdfText(rawText);
         const masked = maskSubjectParentheses(cleaned);
 
-        // Pattern 1: Bracketed ROLL (content), {content}, [content]
+        // Pattern 1: Bracketed
         const p1 = new RegExp('(?:^|[^\\d])(' + cleanRoll + ')\\s*[\\(\\{\\[]([\\s\\S]*?)[\\)\\}\\]]', 'm');
         let match = p1.exec(masked);
-
         if (match) {
-            const rollFound = match[1];
-            const bodyContent = unmaskSubjectParentheses(match[2]);
-            const student = parseStudentBody(rollFound, bodyContent, defaultSemester);
-            rollIndexMap.set(rollFound, student);
+            const student = parseStudentBody(match[1], unmaskSubjectParentheses(match[2]), defaultSemester);
+            rollIndexMap.set(match[1], student);
             return student;
         }
 
-        // Pattern 2: Colon / Equals: ROLL : 3.50 or ROLL = 3.50
+        // Pattern 2: Colon / Dash / Equal
         const p2 = new RegExp('(?:^|[^\\d])(' + cleanRoll + ')\\s*[:=-]\\s*([^\\r\\n,;]+)', 'm');
         match = p2.exec(masked);
         if (match) {
-            const rollFound = match[1];
-            const bodyContent = unmaskSubjectParentheses(match[2]);
-            const student = parseStudentBody(rollFound, bodyContent, defaultSemester);
-            rollIndexMap.set(rollFound, student);
+            const student = parseStudentBody(match[1], unmaskSubjectParentheses(match[2]), defaultSemester);
+            rollIndexMap.set(match[1], student);
+            return student;
+        }
+
+        // Pattern 3: Tabular space separated
+        const p3 = new RegExp('(?:^|[^\\d])(' + cleanRoll + ')\\s{1,8}([2-4]\\.\\d{1,2}|(?:\\d{4,6}[^\\r\\n]+))', 'm');
+        match = p3.exec(masked);
+        if (match) {
+            const student = parseStudentBody(match[1], unmaskSubjectParentheses(match[2]), defaultSemester);
+            rollIndexMap.set(match[1], student);
             return student;
         }
 
@@ -339,7 +334,7 @@ const BTEBParser = (function () {
     }
 
     /**
-     * Parse ALL students found in raw text into an indexed array and populate O(1) Map
+     * Parse ALL students found in raw text into an array and index map
      */
     function parseAll(rawText, defaultSemester) {
         if (!rawText) return [];
@@ -350,48 +345,51 @@ const BTEBParser = (function () {
         const results = [];
         const seenRolls = new Set();
 
-        // Pattern 1: Standard Bracketed Format: \b(ROLL)\b \s* [({[] (BODY) [)}]
-        const pattern1 = /\b(\d{5,8})\b\s*[\(\{\[]([^\)\}\]]+)[\)\}\]]/g;
-        let match;
+        function addCandidate(roll, body) {
+            if (!roll || seenRolls.has(roll)) return;
+            // Ignore institute 5-digit headers like "64024 - Rangpur Polytechnic"
+            const hasGpa = /\b[1-4]\.\d{1,2}\b/.test(body) || /gpa/i.test(body);
+            const hasSubjects = /\d{4,6}/.test(body);
+            const hasStatus = /passed|referred|ref|drop|fail|withheld|absent/i.test(body);
 
-        while ((match = pattern1.exec(masked)) !== null) {
-            const roll = match[1];
-            const rawBody = unmaskSubjectParentheses(match[2]);
-
-            // Filter out institute names e.g. "64024 - Rangpur Polytechnic Institute"
-            // A valid student body must contain GPA (e.g. 3.52), subject codes, or keywords
-            const hasGpa = /\b[1-4]\.\d{1,2}\b/.test(rawBody) || /gpa/i.test(rawBody);
-            const hasSubjects = /\d{4,6}\s*(?:\([TPtp,\s]+\))?/.test(rawBody);
-            const hasStatusWords = /passed|referred|ref|drop|fail|withheld|absent/i.test(rawBody);
-
-            if (hasGpa || hasSubjects || hasStatusWords) {
-                if (!seenRolls.has(roll)) {
-                    seenRolls.add(roll);
-                    const student = parseStudentBody(roll, rawBody, defSem);
-                    results.push(student);
-                    rollIndexMap.set(roll, student);
-                }
-            }
-        }
-
-        // Pattern 2: Colon or Equal Separated format: ROLL : 3.50 or ROLL : 28542(T)
-        const pattern2 = /\b(\d{5,8})\b\s*[:=-]\s*([2-4]\.\d{1,2}|(?:\d{4,6}(?:«[TPtp\s,]+»)?(?:[,\s]+)?)+)/g;
-        while ((match = pattern2.exec(masked)) !== null) {
-            const roll = match[1];
-            if (!seenRolls.has(roll)) {
+            if (hasGpa || hasSubjects || hasStatus) {
                 seenRolls.add(roll);
-                const rawBody = unmaskSubjectParentheses(match[2]);
-                const student = parseStudentBody(roll, rawBody, defSem);
+                const student = parseStudentBody(roll, body, defSem);
                 results.push(student);
                 rollIndexMap.set(roll, student);
             }
+        }
+
+        // Pattern 1: Standard Bracketed: \b(ROLL)\b \s* [({[] (BODY) [)}]
+        const pattern1 = /\b(\d{5,8})\b\s*[\(\{\[]([^\)\}\]]+)[\)\}\]]/g;
+        let match;
+        while ((match = pattern1.exec(masked)) !== null) {
+            addCandidate(match[1], unmaskSubjectParentheses(match[2]));
+        }
+
+        // Pattern 2: Colon / Dash / Equal: \b(ROLL)\b \s* [:=] \s* (BODY)
+        const pattern2 = /\b(\d{5,8})\b\s*[:=-]\s*([2-4]\.\d{1,2}|(?:\d{4,6}(?:«[TPtp\s,]+»)?(?:[,\s]+)?)+)/g;
+        while ((match = pattern2.exec(masked)) !== null) {
+            addCandidate(match[1], unmaskSubjectParentheses(match[2]));
+        }
+
+        // Pattern 3: Tabular / Multi-space layout: \b(ROLL)\b \s{2,} (GPA)
+        const pattern3 = /\b(\d{5,8})\b\s{2,}([2-4]\.\d{1,2})\b/g;
+        while ((match = pattern3.exec(masked)) !== null) {
+            addCandidate(match[1], match[2]);
+        }
+
+        // Pattern 4: Tabular referred layout: \b(ROLL)\b \s{2,} (SUBJECTS)
+        const pattern4 = /\b(\d{5,8})\b\s{2,}((?:(?:\d{4,6}(?:«[TPtp\s,]+»)?)[,\s]*)+)/g;
+        while ((match = pattern4.exec(masked)) !== null) {
+            addCandidate(match[1], unmaskSubjectParentheses(match[2]));
         }
 
         return results;
     }
 
     /**
-     * Build O(1) In-Memory Index Hash Map for instant lookup across 3-4 lakh students
+     * Build O(1) Index Hash Map
      */
     function buildIndex(rawText, defaultSemester) {
         const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
@@ -407,7 +405,7 @@ const BTEBParser = (function () {
     }
 
     /**
-     * Instant O(1) Lookup: Retrieves student result in < 1 millisecond
+     * Instant O(1) Lookup
      */
     function instantLookup(rawText, targetRoll, defaultSemester) {
         const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
@@ -434,7 +432,7 @@ const BTEBParser = (function () {
     }
 
     /**
-     * Calculate Official BTEB CGPA based on regulation weightage
+     * Calculate Official BTEB CGPA
      */
     function calculateCGPA(semesters, regulation = '2022') {
         const weightages = {
@@ -467,124 +465,6 @@ const BTEBParser = (function () {
     }
 
     /**
-     * Non-Blocking Asynchronous Chunked Parser
-     */
-    function parseInChunksAsync(rawText, onProgress, onComplete, defaultSemester, chunkSize = 400) {
-        const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-        const defSem = parseInt(defaultSemester, 10) || 5;
-        const cleaned = cleanRawPdfText(rawText);
-        const masked = maskSubjectParentheses(cleaned);
-
-        const pattern = /\b(\d{5,8})\b\s*[\(\{\[]([^\)\}\]]+)[\)\}\]]/g;
-        const matches = [];
-        const seenRolls = new Set();
-        let m;
-
-        while ((m = pattern.exec(masked)) !== null) {
-            const roll = m[1];
-            const rawBody = unmaskSubjectParentheses(m[2]);
-            const hasGpa = /\b[1-4]\.\d{1,2}\b/.test(rawBody) || /gpa/i.test(rawBody);
-            const hasSubjects = /\d{4,6}/.test(rawBody);
-            const hasStatusWords = /passed|referred|ref|drop|fail|withheld|absent/i.test(rawBody);
-
-            if ((hasGpa || hasSubjects || hasStatusWords) && !seenRolls.has(roll)) {
-                seenRolls.add(roll);
-                matches.push({ roll: roll, body: rawBody });
-            }
-        }
-
-        const total = matches.length;
-        if (total === 0) {
-            if (onComplete) {
-                onComplete({
-                    results: [],
-                    total: 0,
-                    passedCount: 0,
-                    referredCount: 0,
-                    droppedCount: 0,
-                    elapsedMs: 0,
-                    optimizedData: {}
-                });
-            }
-            return;
-        }
-
-        let currentIndex = 0;
-        const results = [];
-        const optimizedIndex = {};
-        let passedCount = 0;
-        let referredCount = 0;
-        let droppedCount = 0;
-
-        function processNextChunk() {
-            const chunkEnd = Math.min(currentIndex + chunkSize, total);
-            for (let i = currentIndex; i < chunkEnd; i++) {
-                const item = matches[i];
-                const student = parseStudentBody(item.roll, item.body, defSem);
-                results.push(student);
-                rollIndexMap.set(item.roll, student);
-
-                if (student.status === 'Passed') passedCount++;
-                else if (student.status === 'Referred') referredCount++;
-                else if (student.status === 'Dropped Out') droppedCount++;
-
-                const semCompact = {};
-                for (let s in student.semesters) {
-                    semCompact[s] = student.semesters[s].value;
-                }
-                optimizedIndex[item.roll] = {
-                    s: student.status === 'Passed' ? 'P' : (student.status === 'Referred' ? 'R' : 'D'),
-                    g: semCompact,
-                    r: student.referredSubjects.map(sub => sub.raw || sub.code)
-                };
-            }
-
-            currentIndex = chunkEnd;
-            const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-            const elapsed = Math.max(1, now - t0);
-            const percent = Math.min(100, Math.round((currentIndex / total) * 100));
-            const speed = Math.round((currentIndex / elapsed) * 1000);
-
-            if (onProgress) {
-                onProgress({
-                    current: currentIndex,
-                    total: total,
-                    percent: percent,
-                    speed: speed,
-                    elapsedMs: Math.round(elapsed),
-                    passedCount: passedCount,
-                    referredCount: referredCount,
-                    droppedCount: droppedCount
-                });
-            }
-
-            if (currentIndex < total) {
-                if (typeof requestAnimationFrame !== 'undefined') {
-                    requestAnimationFrame(processNextChunk);
-                } else {
-                    setTimeout(processNextChunk, 0);
-                }
-            } else {
-                const totalElapsed = (typeof performance !== 'undefined') ? performance.now() - t0 : Date.now() - t0;
-                indexedSourceFingerprint = String(rawText.length) + '_' + total;
-                if (onComplete) {
-                    onComplete({
-                        results: results,
-                        total: total,
-                        passedCount: passedCount,
-                        referredCount: referredCount,
-                        droppedCount: droppedCount,
-                        elapsedMs: parseFloat(totalElapsed.toFixed(2)),
-                        optimizedData: optimizedIndex
-                    });
-                }
-            }
-        }
-
-        processNextChunk();
-    }
-
-    /**
      * Clear the in-memory index map
      */
     function clearIndex() {
@@ -610,7 +490,6 @@ const BTEBParser = (function () {
         parseSubjectCodes: parseSubjectCodes,
         buildIndex: buildIndex,
         instantLookup: instantLookup,
-        parseInChunksAsync: parseInChunksAsync,
         clearIndex: clearIndex,
         setStudent: setStudent,
         getIndexSize: function () { return rollIndexMap.size; }

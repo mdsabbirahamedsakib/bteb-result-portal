@@ -371,6 +371,32 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ─── Delete All Sheets ───
+    var deleteAllSheetsMainBtn = document.getElementById('deleteAllSheetsMainBtn');
+    var exportDatabaseJsonBtn = document.getElementById('exportDatabaseJsonBtn');
+
+    if (exportDatabaseJsonBtn) {
+        exportDatabaseJsonBtn.addEventListener('click', function () {
+            BTEBStorage.exportDatabaseAsJSON();
+            showToast('📥 রেজাল্ট ডেটাবেস ফাইল (.json) ডাউনলোড হয়েছে!', 'success');
+        });
+    }
+
+    if (deleteAllSheetsMainBtn) {
+        deleteAllSheetsMainBtn.addEventListener('click', async function () {
+            var stats = BTEBStorage.getTotalStats();
+            if (stats.sheetCount === 0 && stats.totalStudents === 0) {
+                showToast('ℹ️ মুছে ফেলার মতো কোনো রেজাল্ট ডেটাবেসে নেই।', 'info');
+                return;
+            }
+            if (confirm('⚠️ চূড়ান্ত সতর্কতা: আপনি কি নিশ্চিত যে সমস্ত রেজাল্ট ও ডেটাবেস মুছে ফেলতে চান? এটি মুছে ফেললে কোনো রোল নম্বর আর সার্চে আসবে না।')) {
+                await BTEBStorage.deleteAllSheets();
+                showToast('🗑️ ডেটাবেসের সমস্ত রেজাল্ট ও ফাইল সম্পূর্ণ মুছে ফেলা হয়েছে।', 'warning');
+                renderGlobalStats();
+                renderSavedSheets();
+            }
+        });
+    }
+
     if (deleteAllBtn) {
         deleteAllBtn.addEventListener('click', async function () {
             var sheetCount = BTEBStorage.getAllSheets().length;
@@ -464,39 +490,54 @@ document.addEventListener('DOMContentLoaded', function () {
         var semNames = { '1': '১ম', '2': '২য়', '3': '৩য়', '4': '৪র্থ', '5': '৫ম', '6': '৬ষ্ঠ', '7': '৭ম', '8': '৮ম' };
         var html = '<div class="sheets-list">';
 
-        for (var i = sheets.length - 1; i >= 0; i--) {
+        for (var i = 0; i < sheets.length; i++) {
             var s = sheets[i];
             var semLabel = s.semester ? (semNames[s.semester] || s.semester) + ' সেমিস্টার' : 'সকল সেমিস্টার';
             var savedDate = new Date(s.savedAt);
             var dateStr = savedDate.toLocaleDateString('bn-BD', { year: 'numeric', month: 'long', day: 'numeric' });
             var timeStr = savedDate.toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' });
             var passRate = s.studentCount > 0 ? ((s.passedCount / s.studentCount) * 100).toFixed(0) : 0;
+            var displayFileName = s.fileName || ('BTEB_Result_' + semLabel + '.pdf');
 
             html +=
-                '<div class="sheet-card">' +
-                    '<div class="sheet-card-header">' +
-                        '<div class="sheet-meta-left">' +
+                '<div class="sheet-card" style="border:1px solid var(--border-color);border-radius:10px;padding:14px;margin-bottom:12px;background:var(--bg-card);">' +
+                    '<div class="sheet-card-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">' +
+                        '<div class="sheet-meta-left" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
+                            '<span style="font-size:16px;">📄</span>' +
+                            '<strong style="font-size:14px;color:var(--text-main);">' + displayFileName + '</strong>' +
                             '<span class="sheet-sem-badge">' + semLabel + '</span>' +
                             '<span class="sheet-reg-badge">প্রবিধান ' + s.regulation + '</span>' +
-                            '<span class="sheet-year-badge">পরীক্ষার বছর: ' + s.examYear + '</span>' +
+                            '<span class="sheet-year-badge">' + s.examYear + '</span>' +
                         '</div>' +
-                        '<button type="button" class="btn-sheet-delete" data-sheet-id="' + s.id + '" title="এই শীট মুছে ফেলুন">🗑️</button>' +
+                        '<div style="display:flex;gap:6px;">' +
+                            '<button type="button" class="btn btn-outline btn-sheet-download" data-sheet-id="' + s.id + '" style="font-size:12px;padding:4px 10px;" title="এই ফাইলের ডেটা ডাউনলোড করুন">📥 ডাউনলোড</button>' +
+                            '<button type="button" class="btn-sheet-delete" data-sheet-id="' + s.id + '" title="এই ফাইলটি মুছে ফেলুন" style="background:rgba(239,68,68,0.1);color:#ef4444;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;">🗑️ ডিলিট</button>' +
+                        '</div>' +
                     '</div>' +
                     '<div class="sheet-card-body">' +
-                        '<div class="sheet-stat-pills">' +
-                            '<span class="sheet-pill">👥 মোট: <strong>' + s.studentCount + '</strong></span>' +
-                            '<span class="sheet-pill pill-green">✅ ' + s.passedCount + '</span>' +
-                            '<span class="sheet-pill pill-amber">⚠️ ' + s.referredCount + '</span>' +
-                            '<span class="sheet-pill pill-red">❌ ' + s.droppedCount + '</span>' +
-                            '<span class="sheet-pill pill-blue">📊 ' + passRate + '%</span>' +
+                        '<div class="sheet-stat-pills" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">' +
+                            '<span class="sheet-pill" style="background:rgba(0,0,0,0.05);padding:4px 10px;border-radius:15px;font-size:12px;">👥 মোট: <strong>' + s.studentCount + '</strong></span>' +
+                            '<span class="sheet-pill pill-green" style="background:rgba(16,185,129,0.1);color:#10b981;padding:4px 10px;border-radius:15px;font-size:12px;">✅ উত্তীর্ণ: ' + s.passedCount + '</span>' +
+                            '<span class="sheet-pill pill-amber" style="background:rgba(245,158,11,0.1);color:#f59e0b;padding:4px 10px;border-radius:15px;font-size:12px;">⚠️ রেফার্ড: ' + s.referredCount + '</span>' +
+                            '<span class="sheet-pill pill-red" style="background:rgba(239,68,68,0.1);color:#ef4444;padding:4px 10px;border-radius:15px;font-size:12px;">❌ ড্রপ: ' + s.droppedCount + '</span>' +
+                            '<span class="sheet-pill pill-blue" style="background:rgba(59,130,246,0.1);color:#3b82f6;padding:4px 10px;border-radius:15px;font-size:12px;">📊 পাসের হার: ' + passRate + '%</span>' +
                         '</div>' +
-                        '<div class="sheet-date">📅 সেভ: ' + dateStr + ' | 🕐 ' + timeStr + '</div>' +
+                        '<div class="sheet-date" style="font-size:12px;color:var(--text-muted);">📅 আপলোড ও সেভ: ' + dateStr + ' | 🕐 ' + timeStr + ' | <span style="color:#10b981;">🟢 স্টুডেন্ট পেজে লাইভ সক্রিয়</span></div>' +
                     '</div>' +
                 '</div>';
         }
 
         html += '</div>';
         savedSheetsContainer.innerHTML = html;
+
+        var downloadBtns = savedSheetsContainer.querySelectorAll('.btn-sheet-download');
+        for (var d = 0; d < downloadBtns.length; d++) {
+            downloadBtns[d].addEventListener('click', function () {
+                var sId = this.getAttribute('data-sheet-id');
+                BTEBStorage.exportDatabaseAsJSON();
+                showToast('📥 ফাইল ডাউনলোড সম্পন্ন হয়েছে!', 'info');
+            });
+        }
 
         var deleteBtns = savedSheetsContainer.querySelectorAll('.btn-sheet-delete');
         for (var j = 0; j < deleteBtns.length; j++) {
@@ -1427,32 +1468,19 @@ window.handlePdfFile = async function(file) {
         var referredCount = parsedStudents.filter(function(s){ return s.status === 'Referred'; }).length;
         var droppedCount = parsedStudents.filter(function(s){ return s.status === 'Dropped Out'; }).length;
 
-        // Auto Save to BTEBStorage using IndexedDB (no quota errors!)
-        if (BTEBStorage.saveSheetAsync) {
-            await BTEBStorage.saveSheetAsync({
-                semester: sem,
-                regulation: reg,
-                examYear: year,
-                rawText: extractResult.text,
-                fileName: file.name,
-                studentCount: parsedStudents.length,
-                passedCount: passedCount,
-                referredCount: referredCount,
-                droppedCount: droppedCount,
-                students: parsedStudents
-            });
-        } else {
-            BTEBStorage.saveSheet({
-                semester: sem,
-                regulation: reg,
-                examYear: year,
-                rawText: extractResult.text,
-                studentCount: parsedStudents.length,
-                passedCount: passedCount,
-                referredCount: referredCount,
-                droppedCount: droppedCount
-            });
-        }
+        // Store last scanned PDF data for explicit Save confirmation
+        var lastScannedPdfData = {
+            semester: sem,
+            regulation: reg,
+            examYear: year,
+            rawText: extractResult.text,
+            fileName: file.name,
+            studentCount: parsedStudents.length,
+            passedCount: passedCount,
+            referredCount: referredCount,
+            droppedCount: droppedCount,
+            students: parsedStudents
+        };
 
         // Update Stats Grid
         if (statsGrid) statsGrid.classList.remove('hidden');
@@ -1467,6 +1495,48 @@ window.handlePdfFile = async function(file) {
         if (cntReferred) cntReferred.textContent = referredCount.toLocaleString();
         if (cntDropped) cntDropped.textContent = droppedCount.toLocaleString();
         if (scanTime) scanTime.textContent = extractResult.elapsedSeconds + 's (' + extractResult.totalPages + 'p)';
+
+        // Show Explicit Save Confirmation Card
+        var saveActionWrap = document.getElementById('pdfSaveActionWrapper');
+        var detectedCountEl = document.getElementById('pdfDetectedCountText');
+        var confirmSaveBtn = document.getElementById('pdfConfirmSaveBtn');
+        var downloadJsonBtn = document.getElementById('pdfDownloadJsonBtn');
+        var saveSuccessAlert = document.getElementById('pdfSaveSuccessAlert');
+
+        if (saveActionWrap) saveActionWrap.classList.remove('hidden');
+        if (detectedCountEl) detectedCountEl.textContent = parsedStudents.length.toLocaleString();
+        if (saveSuccessAlert) saveSuccessAlert.classList.add('hidden');
+
+        if (confirmSaveBtn) {
+            confirmSaveBtn.disabled = false;
+            confirmSaveBtn.innerHTML = '💾 এই রেজাল্টগুলো ডেটাবেসে নিশ্চিত সেভ করুন (Save to DB)';
+            confirmSaveBtn.onclick = async function () {
+                confirmSaveBtn.disabled = true;
+                confirmSaveBtn.innerHTML = '<span class="spinner-btn"></span> ডেটাবেসে সেভ হচ্ছে...';
+
+                await BTEBStorage.saveSheetAsync(lastScannedPdfData);
+
+                confirmSaveBtn.innerHTML = '✅ ডেটাবেসে স্থায়ীভাবে সংরক্ষিত হয়েছে!';
+                if (saveSuccessAlert) saveSuccessAlert.classList.remove('hidden');
+
+                renderSavedSheets();
+                renderGlobalStats();
+
+                showToast('🎉 অভিনন্দন! ' + parsedStudents.length.toLocaleString() + 'টি শিক্ষার্থীর রেজাল্ট সফলভাবে ডেটাবেসে সেভ করা হয়েছে!', 'success');
+            };
+        }
+
+        if (downloadJsonBtn) {
+            downloadJsonBtn.onclick = function () {
+                BTEBStorage.exportDatabaseAsJSON();
+                showToast('📥 রেজাল্ট ডেটাবেস ফাইল ডাউনলোড সম্পন্ন হয়েছে!', 'info');
+            };
+        }
+
+        // Also Auto-persist immediately so user never loses data
+        await BTEBStorage.saveSheetAsync(lastScannedPdfData);
+        renderSavedSheets();
+        renderGlobalStats();
 
         // Populate Instant Verification & Preview List
         var previewContainer = document.getElementById('pdfParsedPreviewContainer');
