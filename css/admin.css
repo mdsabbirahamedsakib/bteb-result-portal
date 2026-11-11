@@ -1243,6 +1243,19 @@ body.admin-locked .navbar {
     color: #f1f5f9;
 }
 
+[data-theme="dark"] .setting-toggle-row {
+    background: #0f172a;
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .setting-toggle-info strong {
+    color: #f1f5f9;
+}
+
+[data-theme="dark"] .setting-toggle-info span {
+    color: #94a3b8;
+}
+
 [data-theme="dark"] .visitor-logs-table th {
     background: #0f172a;
     color: #e2e8f0;
