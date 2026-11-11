@@ -17,7 +17,8 @@ $config = [
     // Set a non-empty secret key in db_config.local.php before exposing admin log queries/clear
     'admin_api_key' => '',
     // Optional: set true only behind a trusted reverse proxy (e.g. Cloudflare/Nginx)
-    'trust_proxy'   => false
+    'trust_proxy'   => false,
+    'timezone'      => 'Asia/Dhaka'
 ];
 
 $localOverride = __DIR__ . '/db_config.local.php';

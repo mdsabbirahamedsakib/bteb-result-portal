@@ -199,6 +199,7 @@ const BTEBVisitor = (function () {
         var todayBucket = store.dailyStats[today];
         return {
             totalVisits: store.totalVisits || 0,
+            totalPageViews: store.totalPageViews || store.totalVisits || 0,
             todayVisits: todayBucket && typeof todayBucket.visits === 'number' ? todayBucket.visits : 0,
             uniqueVisitors: Array.isArray(store.uniqueClients) ? store.uniqueClients.length : 0,
             todayUnique: todayBucket && Array.isArray(todayBucket.clients) ? todayBucket.clients.length : 0,
@@ -213,6 +214,22 @@ const BTEBVisitor = (function () {
         var clientId = getOrCreateClientId();
         var store = readStore();
 
+        if (!store.dailyStats[today]) {
+            store.dailyStats[today] = { visits: 0, clients: [] };
+        }
+        if (typeof store.totalPageViews !== 'number') {
+            store.totalPageViews = store.totalVisits || 0;
+        }
+        store.totalPageViews += 1;
+
+        // Prevent duplicate log rows for the same visitor on the same date
+        var alreadyVisitedToday = store.dailyStats[today].clients.indexOf(clientId) !== -1;
+        if (alreadyVisitedToday) {
+            writeStore(store);
+            var existingStats = buildLocalStats(store);
+            return { entry: null, duplicate: true, stats: existingStats };
+        }
+
         var entry = {
             id: store.nextId++,
             ip_address: clientId,
@@ -226,20 +243,15 @@ const BTEBVisitor = (function () {
             store.uniqueClients.push(clientId);
         }
 
-        if (!store.dailyStats[today]) {
-            store.dailyStats[today] = { visits: 0, clients: [] };
-        }
         store.dailyStats[today].visits += 1;
-        if (store.dailyStats[today].clients.indexOf(clientId) === -1) {
-            store.dailyStats[today].clients.push(clientId);
-        }
+        store.dailyStats[today].clients.push(clientId);
 
         store.logs.unshift(entry);
         writeStore(store);
 
         var stats = buildLocalStats(store);
         notifySubscribers(stats);
-        return { entry: entry, stats: stats };
+        return { entry: entry, duplicate: false, stats: stats };
     }
 
     /**

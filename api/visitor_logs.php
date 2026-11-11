@@ -3,11 +3,14 @@
  * BTEB Portal - Optional Visitor Logs REST API (api/visitor_logs.php)
  *
  * Works with MySQL table `visitor_logs` (database/visitor_logs.sql):
- *   - POST ?action=record  : Records visitor IP, visit_date, visited_at & returns aggregate counts
+ *   - POST ?action=record  : Records 1 visit per IP per date & returns aggregate counts
  *   - GET  ?action=stats   : Returns aggregate visitor counts (publicly safe, no raw IP list)
  *   - GET  ?action=logs    : Returns paginated visitor_logs rows (requires configured admin_api_key)
  *   - POST ?action=clear   : Truncates visitor_logs table (requires configured admin_api_key)
  */
+
+define('BTEB_VISITOR_LIB_ONLY', true);
+require_once __DIR__ . '/track_visitor.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -18,39 +21,21 @@ function sendJson(array $payload, int $statusCode = 200): void {
     exit;
 }
 
-function getClientIpAddress(bool $trustProxy): string {
-    $candidates = [];
-    if ($trustProxy && !empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-        $candidates[] = $_SERVER['HTTP_CF_CONNECTING_IP'];
-    }
-    if ($trustProxy && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-        $parts = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
-        if (!empty($parts[0])) {
-            $candidates[] = trim($parts[0]);
-        }
-    }
-    if (!empty($_SERVER['REMOTE_ADDR'])) {
-        $candidates[] = $_SERVER['REMOTE_ADDR'];
-    }
-
-    foreach ($candidates as $ip) {
-        if (filter_var($ip, FILTER_VALIDATE_IP)) {
-            return substr($ip, 0, 45);
-        }
-    }
-    return '0.0.0.0';
-}
-
-function fetchVisitorStats(PDO $pdo): array {
+function fetchVisitorStats(PDO $pdo, string $todayDate): array {
     $sql = "
         SELECT
             COUNT(*) AS total_visits,
             COUNT(DISTINCT ip_address) AS unique_visitors,
-            SUM(CASE WHEN visit_date = CURDATE() THEN 1 ELSE 0 END) AS today_visits,
-            COUNT(DISTINCT CASE WHEN visit_date = CURDATE() THEN ip_address ELSE NULL END) AS today_unique
+            SUM(CASE WHEN visit_date = :today_visits_date THEN 1 ELSE 0 END) AS today_visits,
+            COUNT(DISTINCT CASE WHEN visit_date = :today_unique_date THEN ip_address ELSE NULL END) AS today_unique
         FROM visitor_logs
     ";
-    $row = $pdo->query($sql)->fetch(PDO::FETCH_ASSOC) ?: [];
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([
+        ':today_visits_date' => $todayDate,
+        ':today_unique_date' => $todayDate
+    ]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
     return [
         'totalVisits'    => (int)($row['total_visits'] ?? 0),
         'uniqueVisitors' => (int)($row['unique_visitors'] ?? 0),
@@ -63,7 +48,7 @@ function verifyAdminAuthorization(array $config): void {
     $configuredKey = isset($config['admin_api_key']) ? (string)$config['admin_api_key'] : '';
     if ($configuredKey === '') {
         sendJson([
-            'ok' => false,
+            'ok'      => false,
             'message' => 'Admin API key is not configured in api/db_config.local.php.'
         ], 403);
     }
@@ -71,13 +56,18 @@ function verifyAdminAuthorization(array $config): void {
     $providedKey = $_SERVER['HTTP_X_ADMIN_KEY'] ?? ($_GET['admin_key'] ?? '');
     if (!is_string($providedKey) || !hash_equals($configuredKey, $providedKey)) {
         sendJson([
-            'ok' => false,
+            'ok'      => false,
             'message' => 'Unauthorized admin API key.'
         ], 401);
     }
 }
 
 $config = require __DIR__ . '/db_config.php';
+if (!empty($config['timezone'])) {
+    @date_default_timezone_set((string)$config['timezone']);
+}
+$todayDate = date('Y-m-d');
+
 if (empty($config['dbname']) || empty($config['username'])) {
     sendJson([
         'ok'         => false,
@@ -107,7 +97,7 @@ try {
             visit_date DATE NOT NULL,
             visited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_visit_date (visit_date),
-            INDEX idx_ip_visit_date (ip_address, visit_date)
+            UNIQUE KEY uniq_ip_visit_date (ip_address, visit_date)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
 } catch (Throwable $e) {
@@ -134,16 +124,16 @@ if ($action === '') {
 }
 
 if ($action === 'record' && $method === 'POST') {
-    $ip = getClientIpAddress(!empty($config['trust_proxy']));
-    $stmt = $pdo->prepare('INSERT INTO visitor_logs (ip_address, visit_date) VALUES (:ip, CURDATE())');
-    $stmt->execute([':ip' => $ip]);
+    $track = btebTrackVisitorVisit($pdo, $todayDate, !empty($config['trust_proxy']));
 
     sendJson([
         'ok'         => true,
         'configured' => true,
         'mode'       => 'mysql',
-        'id'         => (int)$pdo->lastInsertId(),
-        'stats'      => fetchVisitorStats($pdo)
+        'recorded'   => $track['recorded'],
+        'duplicate'  => $track['duplicate'],
+        'id'         => $track['id'],
+        'stats'      => fetchVisitorStats($pdo, $todayDate)
     ]);
 }
 
@@ -152,7 +142,7 @@ if ($action === 'stats' && $method === 'GET') {
         'ok'         => true,
         'configured' => true,
         'mode'       => 'mysql',
-        'stats'      => fetchVisitorStats($pdo)
+        'stats'      => fetchVisitorStats($pdo, $todayDate)
     ]);
 }
 
@@ -170,7 +160,8 @@ if ($action === 'logs' && $method === 'GET') {
     $params = [];
 
     if ($dateFilter === 'today') {
-        $where[] = 'visit_date = CURDATE()';
+        $where[] = 'visit_date = :today_filter';
+        $params[':today_filter'] = $todayDate;
     } elseif ($dateFilter !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFilter)) {
         $where[] = 'visit_date = :visit_date';
         $params[':visit_date'] = $dateFilter;
@@ -195,7 +186,7 @@ if ($action === 'logs' && $method === 'GET') {
         'ok'         => true,
         'configured' => true,
         'mode'       => 'mysql',
-        'stats'      => fetchVisitorStats($pdo),
+        'stats'      => fetchVisitorStats($pdo, $todayDate),
         'logs'       => $stmt->fetchAll()
     ]);
 }
@@ -207,7 +198,7 @@ if ($action === 'clear' && $method === 'POST') {
         'ok'         => true,
         'configured' => true,
         'mode'       => 'mysql',
-        'stats'      => fetchVisitorStats($pdo)
+        'stats'      => fetchVisitorStats($pdo, $todayDate)
     ]);
 }
 

@@ -9,5 +9,5 @@ CREATE TABLE IF NOT EXISTS visitor_logs (
     visit_date DATE NOT NULL,
     visited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_visit_date (visit_date),
-    INDEX idx_ip_visit_date (ip_address, visit_date)
+    UNIQUE KEY uniq_ip_visit_date (ip_address, visit_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
