@@ -1081,7 +1081,6 @@ window.handleAdminLogout = function() {
     });
     resetInactivityTimer();
 })();
-};
 
 // ==========================================================================
 // Step 7: Security & Change Credentials
