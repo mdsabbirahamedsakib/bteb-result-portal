@@ -11,8 +11,8 @@
     'use strict';
 
     global.BTEB_SUPABASE_CONFIG = {
-        url: 'https://YOUR_PROJECT_ID.supabase.co',
-        anonKey: 'YOUR_SUPABASE_ANON_KEY',
+        url: 'https://mxumlmoozjlpnasplell.supabase.co',
+        anonKey: 'sb_publishable_DPm2LpBx3ufHsn_B4Ueb_g_wbX7WclC',
         tableName: 'bteb_results',
         batchSize: 500,
         requestTimeoutMs: 12000
