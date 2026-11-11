@@ -36,12 +36,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ─── Build combined data source & Pre-index in O(1) Hash Map ───
-    var currentRawData;
-    if (typeof BTEBStorage !== 'undefined') {
-        currentRawData = BTEBStorage.getCombinedRawText();
-    } else {
-        currentRawData = BTEBData.RAW_BTEB_SHEET_DEMO;
-    }
+    var currentRawData = (typeof BTEBStorage !== 'undefined') ? BTEBStorage.getCombinedRawText() : '';
 
     // Pre-build O(1) index map for instant lookups
     if (typeof BTEBStorage !== 'undefined' && BTEBStorage.initDB) {
@@ -53,7 +48,6 @@ document.addEventListener('DOMContentLoaded', function () {
             if (typeof BTEBStorage !== 'undefined' && BTEBStorage.initDB) {
                 BTEBStorage.initDB();
             }
-            renderQuickDemoPills();
         });
     }
 
@@ -74,7 +68,6 @@ document.addEventListener('DOMContentLoaded', function () {
     var semesterSelect = document.getElementById('semesterSelect');
     var regulationSelect = document.getElementById('regulationSelect');
     var searchBtn = document.getElementById('searchBtn');
-    var quickDemoPills = document.getElementById('quickDemoPills');
     var resultContainer = document.getElementById('resultContainer');
     var skeletonLoader = document.getElementById('skeletonLoader');
     var emptyState = document.getElementById('emptyState');
@@ -82,9 +75,6 @@ document.addEventListener('DOMContentLoaded', function () {
     var closeComingSoonBtn = document.getElementById('closeComingSoonBtn');
     var comingSoonTitle = document.getElementById('comingSoonTitle');
     var comingSoonDesc = document.getElementById('comingSoonDesc');
-
-    // Initialize Demo Quick Pills
-    renderQuickDemoPills();
 
     // Event Listeners
     if (searchForm) {
@@ -204,53 +194,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     /**
-     * Render Active Database Status Indicator & Clickable Sample Test Rolls
-     */
-    function renderQuickDemoPills() {
-        if (!quickDemoPills) return;
-        quickDemoPills.innerHTML = '';
-
-        var totalCount = 0;
-        var sampleRolls = [];
-
-        if (typeof BTEBResultsDatabase !== 'undefined') {
-            sampleRolls = BTEBResultsDatabase.getAllRolls();
-            totalCount = BTEBResultsDatabase.getCount();
-        }
-
-        if (typeof BTEBStorage !== 'undefined') {
-            var stats = BTEBStorage.getTotalStats();
-            if (stats.totalStudents > totalCount) {
-                totalCount = stats.totalStudents;
-            }
-        }
-
-        var pillsContainer = document.getElementById('demoPillsContainer');
-        if (pillsContainer) pillsContainer.style.display = 'block';
-
-        var html = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;">';
-        html += '<span style="font-size:13px;color:#10b981;font-weight:600;">🟢 লাইভ ডেটাবেস সক্রিয়: <strong>' + totalCount + '</strong> জন শিক্ষার্থীর বোর্ড রেজাল্ট প্রস্তুত।</span>';
-        
-        if (sampleRolls.length > 0) {
-            html += '<span style="font-size:12.5px;color:var(--text-muted);margin-left:4px;">টেস্ট করতে ক্লিক করুন:</span>';
-            var displayPills = sampleRolls.slice(0, 6);
-            displayPills.forEach(function (r) {
-                html += '<button type="button" class="btn btn-outline" style="cursor:pointer;padding:2px 10px;font-size:12px;border-radius:14px;background:rgba(16,185,129,0.06);border-color:rgba(16,185,129,0.3);color:#059669;font-weight:600;" onclick="window.quickSearchRoll(\'' + r + '\')">#' + r + '</button>';
-            });
-        }
-        html += '</div>';
-        quickDemoPills.innerHTML = html;
-    }
-
-    window.quickSearchRoll = function (roll) {
-        if (rollInput) {
-            rollInput.value = roll;
-            executeSearch(roll);
-        }
-    };
-
-    /**
      * High-Performance Instant Search Engine with O(1) Lookup & Skeleton Loading
+     * 100% Real PDF / Uploaded Data Only - Zero Demo Policy
      */
     async function executeSearch(overrideRoll) {
         if (!isServerOn) {
@@ -259,7 +204,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         var rawRoll = overrideRoll || rollInput.value.trim();
-        var roll = BTEBParser.normalizeDigits(rawRoll);
+        var roll = (typeof BTEBParser !== 'undefined' && BTEBParser.cleanRollNumber) 
+            ? BTEBParser.cleanRollNumber(rawRoll) 
+            : (typeof BTEBParser !== 'undefined' ? BTEBParser.normalizeDigits(rawRoll) : String(rawRoll).trim());
         var selectedSemester = semesterSelect.value;
         var selectedRegulation = regulationSelect.value;
 
@@ -555,7 +502,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     /**
-     * Render Not Found View
+     * Render Not Found View (Zero Demo Policy)
      */
     function renderNotFound(roll) {
         if (emptyState) emptyState.classList.add('hidden');
@@ -565,12 +512,10 @@ document.addEventListener('DOMContentLoaded', function () {
         resultContainer.innerHTML =
             '<div class="result-not-found">' +
             '  <div class="not-found-icon">🔍</div>' +
-            '  <h3 class="not-found-title">রোল নম্বর: <span class="text-danger">' + roll + '</span> এর কোনো রেজাল্ট পাওয়া যায়নি!</h3>' +
+            '  <h3 class="not-found-title">উক্ত রোল নম্বরের কোনো রেজাল্ট পাওয়া যায়নি</h3>' +
             '  <p class="not-found-desc">' +
-            '    সম্ভাব্য কারণসমূহ:<br>' +
-            '    ১. রোল নম্বরটি ভুল টাইপ করা হয়েছে।<br>' +
-            '    ২. উক্ত রোল নম্বরের রেজাল্ট এখনো বোর্ডে প্রকাশিত হয়নি বা উইথহোল্ড আছে।<br>' +
-            '    ৩. অ্যাডমিন <a href="admin.html" style="color:var(--primary);font-weight:700">Admin Panel</a> থেকে নতুন রেজাল্ট শিট আপলোড করলে এই রোল খুঁজে পাওয়া যেতে পারে।' +
+            '    রোল নম্বর: <strong class="text-danger">' + roll + '</strong> এর কোনো ফলাফল ডেটাবেসে অন্তর্ভুক্ত নেই।<br>' +
+            '    অনুগ্রহ করে সঠিক রোল নম্বর লিখুন অথবা অ্যাডমিন প্যানেল থেকে উক্ত সেমিস্টারের অফিসিয়াল BTEB রেজাল্ট PDF আপলোড নিশ্চিত করুন।' +
             '  </p>' +
             '  <div class="not-found-actions">' +
             '    <button type="button" class="btn btn-primary" id="retrySearchBtn">পুনরায় চেষ্টা করুন</button>' +

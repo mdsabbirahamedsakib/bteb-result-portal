@@ -481,7 +481,9 @@ const BTEBStorage = (function () {
      * 3. If conflicting or duplicate records exist, PDF data is given HIGHEST PRIORITY (PDF > Paste > Seed).
      */
     function getStudent(roll) {
-        var cleanRoll = (typeof BTEBParser !== 'undefined') ? BTEBParser.normalizeDigits(roll) : String(roll).trim();
+        var cleanRoll = (typeof BTEBParser !== 'undefined' && BTEBParser.cleanRollNumber) 
+            ? BTEBParser.cleanRollNumber(roll) 
+            : (typeof BTEBParser !== 'undefined' ? BTEBParser.normalizeDigits(roll) : String(roll).trim());
         if (!cleanRoll) return null;
 
         var candidates = [];
@@ -505,6 +507,17 @@ const BTEBStorage = (function () {
             }
         }
 
+        // Also check without leading zeroes if not found
+        var stripped = cleanRoll.replace(/^0+/, '');
+        if (stripped && stripped !== cleanRoll) {
+            if (cachedStudentsMap.has(stripped)) candidates.push(cachedStudentsMap.get(stripped));
+            if (compactDb && compactDb[stripped]) candidates.push(compactDb[stripped]);
+            if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getStudent) {
+                var bStrip = BTEBResultsDatabase.getStudent(stripped);
+                if (bStrip) candidates.push(bStrip);
+            }
+        }
+
         if (candidates.length === 0) return null;
 
         // Sort ascending by priority (1 -> 5 -> 10) so highest priority (PDF) merges on top
@@ -525,7 +538,9 @@ const BTEBStorage = (function () {
 
     async function getStudentAsync(roll) {
         var st = getStudent(roll);
-        var cleanRoll = (typeof BTEBParser !== 'undefined') ? BTEBParser.normalizeDigits(roll) : String(roll).trim();
+        var cleanRoll = (typeof BTEBParser !== 'undefined' && BTEBParser.cleanRollNumber) 
+            ? BTEBParser.cleanRollNumber(roll) 
+            : (typeof BTEBParser !== 'undefined' ? BTEBParser.normalizeDigits(roll) : String(roll).trim());
         if (!cleanRoll) return st;
 
         var db = await getDB();
@@ -548,12 +563,6 @@ const BTEBStorage = (function () {
             } catch (e) {}
         }
         return st;
-    }
-            } catch (e) {
-                return null;
-            }
-        }
-        return null;
     }
 
     function getTotalStats() {

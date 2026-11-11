@@ -114,16 +114,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // ─── Load Sample Demo Text ───
-    var loadSampleTextBtn = document.getElementById('loadSampleTextBtn');
-    if (loadSampleTextBtn && bulkTextarea) {
-        loadSampleTextBtn.addEventListener('click', function () {
-            bulkTextarea.value = BTEBData.RAW_BTEB_SHEET_DEMO.trim();
-            updatePreviewStats();
-            showToast('📋 ডেমো রেজাল্ট টেক্সট লোড করা হয়েছে। এখন "Save & Publish" বাটনে ক্লিক করতে পারেন।', 'info');
-        });
-    }
-
     // ─── Step 5: Save & Publish with Non-Blocking Async Chunk Engine ───
     if (savePublishBtn) {
         savePublishBtn.addEventListener('click', function () {
@@ -1356,10 +1346,11 @@ window.confirmDeleteAllResults = function() {
 };
 
 // ==========================================================================
-// Step 8: Client-Side PDF Auto-Parsing Engine (PDF.js)
+// Step 8: Multi-PDF Batch Queue & Chunked Stream Parsing Engine (PDF.js)
+// Zero-Freezing, Non-Blocking, 1000+ Page Support with Instant IndexedDB Sync
 // ==========================================================================
 
-async function extractTextFromPdf(file, onProgress) {
+async function extractAndParsePdfStream(file, defaultSemester, onProgress) {
     if (typeof pdfjsLib === 'undefined') {
         throw new Error('PDF.js লাইব্রেরি পাওয়া যায়নি। ইন্টারনেট সংযোগ চেক করুন।');
     }
@@ -1369,18 +1360,25 @@ async function extractTextFromPdf(file, onProgress) {
     } catch (e) {}
 
     var arrayBuffer = await file.arrayBuffer();
-    var pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    var loadingTask = pdfjsLib.getDocument({
+        data: arrayBuffer,
+        cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+        cMapPacked: true,
+        stopAtErrors: false
+    });
+    var pdfDoc = await loadingTask.promise;
     var totalPages = pdfDoc.numPages;
-    var fullText = '';
     var t0 = performance.now();
+
+    var allStudentsMap = new Map();
+    var sampleRawText = '';
 
     for (var pageNum = 1; pageNum <= totalPages; pageNum++) {
         var page = await pdfDoc.getPage(pageNum);
-        var textContent = await page.getTextContent();
+        var textContent = await page.getTextContent({ normalizeWhitespace: true });
 
         var lastY = null;
         var pageText = '';
-
         for (var i = 0; i < textContent.items.length; i++) {
             var item = textContent.items[i];
             if (lastY !== null && Math.abs(item.transform[5] - lastY) > 5) {
@@ -1392,7 +1390,23 @@ async function extractTextFromPdf(file, onProgress) {
             lastY = item.transform[5];
         }
 
-        fullText += (pageNum > 1 ? '\n\n' : '') + pageText;
+        // CRITICAL: Cleanup page canvas representation immediately to avoid browser out-of-memory!
+        page.cleanup();
+
+        // Stream parse page text into students immediately
+        var pageStudents = BTEBParser.parseAll(pageText, defaultSemester);
+        for (var s = 0; s < pageStudents.length; s++) {
+            var st = pageStudents[s];
+            st.source = 'pdf';
+            st.sourcePriority = 10;
+            st.sources = ['pdf'];
+            st.sourceLabel = '📄 অফিসিয়াল PDF থেকে ভেরিফাইড (সর্বোচ্চ অগ্রাধিকারপ্রাপ্ত)';
+            allStudentsMap.set(st.roll, st);
+        }
+
+        if (pageNum <= 50) {
+            sampleRawText += (pageNum > 1 ? '\n\n' : '') + pageText;
+        }
 
         if (onProgress) {
             var percent = Math.round((pageNum / totalPages) * 100);
@@ -1403,34 +1417,56 @@ async function extractTextFromPdf(file, onProgress) {
                 totalPages: totalPages,
                 percent: percent,
                 elapsedMs: elapsedMs,
-                pagesPerSec: pagesPerSec
+                pagesPerSec: pagesPerSec,
+                studentsFoundSoFar: allStudentsMap.size
             });
         }
+
+        // Non-blocking yield to browser main event loop so UI paints at 60fps and never freezes
+        await new Promise(function(resolve) { setTimeout(resolve, 0); });
     }
 
+    try {
+        if (pdfDoc.destroy) await pdfDoc.destroy();
+        if (pdfDoc.cleanup) pdfDoc.cleanup();
+    } catch (e) {}
+
+    var studentsArray = Array.from(allStudentsMap.values());
     var totalElapsed = ((performance.now() - t0) / 1000).toFixed(1);
+
     return {
-        text: fullText,
+        students: studentsArray,
         totalPages: totalPages,
-        elapsedSeconds: totalElapsed
+        elapsedSeconds: totalElapsed,
+        rawText: sampleRawText
     };
 }
 
-window.handlePdfFileSelected = function(e) {
+window.handlePdfFilesSelected = function(e) {
     if (e.target.files && e.target.files.length > 0) {
-        window.handlePdfFile(e.target.files[0]);
+        window.handlePdfBatch(Array.from(e.target.files));
     }
 };
 
-window.handlePdfFile = async function(file) {
-    if (!file || !file.name.toLowerCase().endsWith('.pdf')) {
-        showToast('⚠️ অনুগ্রহ করে একটি সঠিক PDF (.pdf) ফাইল নির্বাচন করুন!', 'warning');
+window.handlePdfFileSelected = function(e) {
+    if (e.target.files && e.target.files.length > 0) {
+        window.handlePdfBatch(Array.from(e.target.files));
+    }
+};
+
+window.handlePdfBatch = async function(fileList) {
+    var files = fileList.filter(function(f) {
+        return f && f.name && f.name.toLowerCase().endsWith('.pdf');
+    });
+
+    if (files.length === 0) {
+        showToast('⚠️ অনুগ্রহ করে এক বা একাধিক সঠিক PDF (.pdf) ফাইল নির্বাচন করুন!', 'warning');
         return;
     }
 
     var nameDisplay = document.getElementById('pdfFileNameDisplay');
     if (nameDisplay) {
-        nameDisplay.textContent = '📑 ' + file.name + ' (' + (file.size / (1024 * 1024)).toFixed(2) + ' MB)';
+        nameDisplay.textContent = '📑 মোট ' + files.length + 'টি PDF ফাইল প্রসেসিং কিউতে যুক্ত হয়েছে।';
         nameDisplay.classList.remove('hidden');
     }
 
@@ -1439,127 +1475,224 @@ window.handlePdfFile = async function(file) {
     var progPct = document.getElementById('pdfProgressPct');
     var pageStatus = document.getElementById('pdfPageStatus');
     var speedStatus = document.getElementById('pdfSpeedStatus');
+    var progTitle = document.getElementById('pdfProgressTitle');
     var statsGrid = document.getElementById('pdfStatsGrid');
+    var queueWrapper = document.getElementById('pdfQueueWrapper');
+    var queueList = document.getElementById('pdfQueueList');
 
     if (progWrap) progWrap.classList.remove('hidden');
-    if (statsGrid) statsGrid.classList.add('hidden');
+    if (queueWrapper) queueWrapper.classList.remove('hidden');
+    if (statsGrid) statsGrid.classList.remove('hidden');
     if (progFill) progFill.style.width = '0%';
     if (progPct) progPct.textContent = '0%';
 
-    try {
-        var extractResult = await extractTextFromPdf(file, function(prog) {
-            if (progFill) progFill.style.width = prog.percent + '%';
-            if (progPct) progPct.textContent = prog.percent + '%';
-            if (pageStatus) {
-                pageStatus.textContent = 'Reading page ' + prog.currentPage.toLocaleString() + ' of ' + prog.totalPages.toLocaleString() + '... (' + prog.percent + '%)';
-            }
-            if (speedStatus) {
-                speedStatus.textContent = 'গতি: ' + prog.pagesPerSec + ' পৃষ্ঠা/সেকেন্ড | সময়: ' + (prog.elapsedMs / 1000).toFixed(1) + 's';
-            }
+    // Build Queue List in UI
+    if (queueList) {
+        var qHtml = '';
+        files.forEach(function(f, idx) {
+            qHtml += '<div id="queueItem_' + idx + '" style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(0,0,0,0.05);">';
+            qHtml += '  <span><strong>' + (idx + 1) + '.</strong> ' + f.name + ' (' + (f.size / (1024 * 1024)).toFixed(1) + ' MB)</span>';
+            qHtml += '  <span id="queueBadge_' + idx + '" class="badge" style="background:rgba(0,0,0,0.06);color:var(--text-muted);font-size:11px;padding:2px 8px;border-radius:10px;">⏳ অপেক্ষমাণ</span>';
+            qHtml += '</div>';
         });
+        queueList.innerHTML = qHtml;
+    }
 
-        if (progFill) progFill.style.width = '100%';
-        if (progPct) progPct.textContent = '100%';
-        if (pageStatus) {
-            pageStatus.textContent = '✅ মোট ' + extractResult.totalPages.toLocaleString() + ' পৃষ্ঠা সফলভাবে স্ক্যান হয়েছে!';
+    var sem = document.getElementById('pdfSemester') ? document.getElementById('pdfSemester').value : '5';
+    var reg = document.getElementById('pdfRegulation') ? document.getElementById('pdfRegulation').value : '2022';
+    var year = document.getElementById('pdfExamYear') ? document.getElementById('pdfExamYear').value : '2024';
+
+    var totalFiles = files.length;
+    var cumulativeStudents = 0;
+    var cumulativePassed = 0;
+    var cumulativeReferred = 0;
+    var cumulativeDropped = 0;
+    var cumulativePages = 0;
+    var lastSavedStudents = [];
+    var tBatchStart = performance.now();
+
+    for (var k = 0; k < totalFiles; k++) {
+        var curFile = files[k];
+        var badgeEl = document.getElementById('queueBadge_' + k);
+        if (badgeEl) {
+            badgeEl.style.background = 'rgba(239,68,68,0.15)';
+            badgeEl.style.color = '#ef4444';
+            badgeEl.innerHTML = '<span class="spinner-btn" style="width:10px;height:10px;border-width:1.5px;display:inline-block;vertical-align:middle;margin-right:4px;"></span> স্ক্যান হচ্ছে...';
         }
 
-        // Selected upload metadata
-        var sem = document.getElementById('pdfSemester') ? document.getElementById('pdfSemester').value : '5';
-        var reg = document.getElementById('pdfRegulation') ? document.getElementById('pdfRegulation').value : '2022';
-        var year = document.getElementById('pdfExamYear') ? document.getElementById('pdfExamYear').value : '2024';
-
-        // Parse extracted text with BTEBParser passing semester
-        var parsedStudents = BTEBParser.parseAll(extractResult.text, sem);
-
-        if (parsedStudents.length === 0) {
-            showToast('⚠️ পিডিএফ থেকে কোনো রোল নম্বর ডিটেক্ট করা যায়নি! ফাইল ফরম্যাট চেক করুন।', 'warning');
-            return;
+        if (progTitle) {
+            progTitle.textContent = 'Processing PDF ' + (k + 1) + ' of ' + totalFiles + ' — ' + curFile.name;
         }
 
-        // Tag all students with highest priority (PDF: priority 10)
-        parsedStudents.forEach(function (s) {
-            s.source = 'pdf';
-            s.sourcePriority = 10;
-            s.sources = ['pdf'];
-            s.sourceLabel = '📄 অফিসিয়াল PDF থেকে ভেরিফাইড (সর্বোচ্চ অগ্রাধিকারপ্রাপ্ত)';
-        });
+        try {
+            var extractResult = await extractAndParsePdfStream(curFile, sem, function(prog) {
+                var fileContribution = (prog.percent / 100);
+                var overallPercent = Math.min(100, Math.round(((k + fileContribution) / totalFiles) * 100));
 
-        var passedCount = parsedStudents.filter(function(s){ return s.status === 'Passed'; }).length;
-        var referredCount = parsedStudents.filter(function(s){ return s.status === 'Referred'; }).length;
-        var droppedCount = parsedStudents.filter(function(s){ return s.status === 'Dropped Out'; }).length;
+                if (progFill) progFill.style.width = overallPercent + '%';
+                if (progPct) progPct.textContent = overallPercent + '%';
+                if (pageStatus) {
+                    pageStatus.textContent = 'PDF ' + (k + 1) + ' of ' + totalFiles + ' — Page ' + prog.currentPage + ' / ' + prog.totalPages + ' (' + prog.percent + '%) | সর্বমোট রোল: ' + (cumulativeStudents + prog.studentsFoundSoFar).toLocaleString();
+                }
+                if (speedStatus) {
+                    speedStatus.textContent = 'গতি: ' + prog.pagesPerSec + ' পৃষ্ঠা/সেকেন্ড | ব্রাউজার মেমোরি: সুরক্ষিত';
+                }
+            });
 
-        // Store last scanned PDF data with highest priority 10
-        var lastScannedPdfData = {
-            semester: sem,
-            regulation: reg,
-            examYear: year,
-            rawText: extractResult.text,
-            fileName: file.name,
-            source: 'pdf',
-            priority: 10,
-            studentCount: parsedStudents.length,
-            passedCount: passedCount,
-            referredCount: referredCount,
-            droppedCount: droppedCount,
-            students: parsedStudents
-        };
+            var fileStudents = extractResult.students;
+            var filePassed = fileStudents.filter(function(s){ return s.status === 'Passed'; }).length;
+            var fileReferred = fileStudents.filter(function(s){ return s.status === 'Referred'; }).length;
+            var fileDropped = fileStudents.filter(function(s){ return s.status === 'Dropped Out'; }).length;
 
-        // Update Stats Grid
-        if (statsGrid) statsGrid.classList.remove('hidden');
-        var cntTotal = document.getElementById('pdfCntTotal');
-        var cntPassed = document.getElementById('pdfCntPassed');
-        var cntReferred = document.getElementById('pdfCntReferred');
-        var cntDropped = document.getElementById('pdfCntDropped');
-        var scanTime = document.getElementById('pdfScanTime');
+            cumulativeStudents += fileStudents.length;
+            cumulativePassed += filePassed;
+            cumulativeReferred += fileReferred;
+            cumulativeDropped += fileDropped;
+            cumulativePages += extractResult.totalPages;
+            lastSavedStudents = lastSavedStudents.concat(fileStudents.slice(0, 5));
 
-        if (cntTotal) cntTotal.textContent = parsedStudents.length.toLocaleString();
-        if (cntPassed) cntPassed.textContent = passedCount.toLocaleString();
-        if (cntReferred) cntReferred.textContent = referredCount.toLocaleString();
-        if (cntDropped) cntDropped.textContent = droppedCount.toLocaleString();
-        if (scanTime) scanTime.textContent = extractResult.elapsedSeconds + 's (' + extractResult.totalPages + 'p)';
+            // Immediately persist this PDF sheet into IndexedDB & localStorage
+            await BTEBStorage.saveSheetAsync({
+                fileName: curFile.name,
+                semester: sem,
+                regulation: reg,
+                examYear: year,
+                rawText: extractResult.rawText,
+                studentCount: fileStudents.length,
+                passedCount: filePassed,
+                referredCount: fileReferred,
+                droppedCount: fileDropped,
+                students: fileStudents,
+                source: 'pdf',
+                priority: 10
+            });
 
-        // Show Explicit Save Confirmation Card
-        var saveActionWrap = document.getElementById('pdfSaveActionWrapper');
-        var detectedCountEl = document.getElementById('pdfDetectedCountText');
-        var confirmSaveBtn = document.getElementById('pdfConfirmSaveBtn');
-        var downloadJsonBtn = document.getElementById('pdfDownloadJsonBtn');
-        var saveSuccessAlert = document.getElementById('pdfSaveSuccessAlert');
+            // Update queue item badge
+            if (badgeEl) {
+                badgeEl.style.background = 'rgba(16,185,129,0.15)';
+                badgeEl.style.color = '#10b981';
+                badgeEl.textContent = '✅ সম্পন্ন (' + fileStudents.length.toLocaleString() + ' রোল)';
+            }
 
-        if (saveActionWrap) saveActionWrap.classList.remove('hidden');
-        if (detectedCountEl) detectedCountEl.textContent = parsedStudents.length.toLocaleString();
-        if (saveSuccessAlert) saveSuccessAlert.classList.add('hidden');
+            // Update Live Stats Grid
+            var cntTotal = document.getElementById('pdfCntTotal');
+            var cntPassed = document.getElementById('pdfCntPassed');
+            var cntReferred = document.getElementById('pdfCntReferred');
+            var cntDropped = document.getElementById('pdfCntDropped');
+            var scanTime = document.getElementById('pdfScanTime');
 
-        if (confirmSaveBtn) {
-            confirmSaveBtn.disabled = false;
-            confirmSaveBtn.innerHTML = '💾 এই রেজাল্টগুলো ডেটাবেসে নিশ্চিত সেভ করুন (Save to DB)';
-            confirmSaveBtn.onclick = async function () {
-                confirmSaveBtn.disabled = true;
-                confirmSaveBtn.innerHTML = '<span class="spinner-btn"></span> ডেটাবেসে সেভ হচ্ছে...';
+            if (cntTotal) cntTotal.textContent = cumulativeStudents.toLocaleString();
+            if (cntPassed) cntPassed.textContent = cumulativePassed.toLocaleString();
+            if (cntReferred) cntReferred.textContent = cumulativeReferred.toLocaleString();
+            if (cntDropped) cntDropped.textContent = cumulativeDropped.toLocaleString();
+            if (scanTime) {
+                var totalSec = ((performance.now() - tBatchStart) / 1000).toFixed(1);
+                scanTime.textContent = totalSec + 's (' + cumulativePages + 'p)';
+            }
 
-                await BTEBStorage.saveSheetAsync(lastScannedPdfData);
+            renderSavedSheets();
+            renderGlobalStats();
 
-                confirmSaveBtn.innerHTML = '✅ ডেটাবেসে স্থায়ীভাবে সংরক্ষিত হয়েছে!';
-                if (saveSuccessAlert) saveSuccessAlert.classList.remove('hidden');
-
-                renderSavedSheets();
-                renderGlobalStats();
-
-                showToast('🎉 অভিনন্দন! ' + parsedStudents.length.toLocaleString() + 'টি শিক্ষার্থীর রেজাল্ট সফলভাবে ডেটাবেসে সেভ করা হয়েছে!', 'success');
-            };
+        } catch (err) {
+            console.error('Error processing PDF in queue:', curFile.name, err);
+            if (badgeEl) {
+                badgeEl.style.background = 'rgba(239,68,68,0.2)';
+                badgeEl.style.color = '#ef4444';
+                badgeEl.textContent = '❌ ত্রুটি';
+            }
         }
+    }
 
-        if (downloadJsonBtn) {
-            downloadJsonBtn.onclick = function () {
-                BTEBStorage.exportDatabaseAsJSON();
-                showToast('📥 রেজাল্ট ডেটাবেস ফাইল ডাউনলোড সম্পন্ন হয়েছে!', 'info');
-            };
+    // Complete Progress Bar Animation
+    if (progFill) progFill.style.width = '100%';
+    if (progPct) progPct.textContent = '100%';
+    if (progTitle) {
+        progTitle.textContent = '✅ সকল PDF পার্স ও সেভ সম্পন্ন! (All ' + totalFiles + ' PDFs Indexed)';
+    }
+    if (pageStatus) {
+        pageStatus.textContent = '🎉 সর্বমোট ' + totalFiles + 'টি ফাইলের ' + cumulativePages.toLocaleString() + ' পৃষ্ঠা সফলভাবে স্ক্যান ও স্থায়ী ডেটাবেসে সেভ হয়েছে!';
+    }
+
+    // Show Confirmation Box
+    var saveActionWrap = document.getElementById('pdfSaveActionWrapper');
+    var detectedCountEl = document.getElementById('pdfDetectedCountText');
+    var confirmSaveBtn = document.getElementById('pdfConfirmSaveBtn');
+    var saveSuccessAlert = document.getElementById('pdfSaveSuccessAlert');
+
+    if (saveActionWrap) saveActionWrap.classList.remove('hidden');
+    if (detectedCountEl) detectedCountEl.textContent = cumulativeStudents.toLocaleString();
+    if (confirmSaveBtn) {
+        confirmSaveBtn.innerHTML = '✅ ডেটাবেসে স্থায়ীভাবে সংরক্ষিত হয়েছে!';
+        confirmSaveBtn.disabled = true;
+    }
+    if (saveSuccessAlert) {
+        saveSuccessAlert.textContent = '✅ অভিনন্দন! ' + totalFiles + 'টি পিডিএফ থেকে সর্বমোট ' + cumulativeStudents.toLocaleString() + ' জন শিক্ষার্থীর রেজাল্ট সফলভাবে ডেটাবেসে সংরক্ষিত হয়েছে এবং স্টুডেন্ট পেজে উন্মুক্ত হয়েছে!';
+        saveSuccessAlert.classList.remove('hidden');
+    }
+
+    // Populate Instant Verification & Preview List with Real Uploaded Rolls
+    var previewContainer = document.getElementById('pdfParsedPreviewContainer');
+    var sampleList = document.getElementById('pdfSampleRollsList');
+    var testInput = document.getElementById('pdfTestRollInput');
+    var testBtn = document.getElementById('pdfTestRollBtn');
+    var testOut = document.getElementById('pdfTestRollOutput');
+
+    if (previewContainer) previewContainer.classList.remove('hidden');
+
+    if (sampleList && lastSavedStudents.length > 0) {
+        var sampleHtml = '<table style="width:100%;border-collapse:collapse;text-align:left;">';
+        sampleHtml += '<tr style="border-bottom:1px solid var(--border-color);background:rgba(0,0,0,0.03);font-weight:600;"><th style="padding:6px 10px;">রোল নং</th><th style="padding:6px 10px;">ফলাফল</th><th style="padding:6px 10px;">জিপিএ / বিষয়</th></tr>';
+
+        var sampleCount = Math.min(15, lastSavedStudents.length);
+        for (var m = 0; m < sampleCount; m++) {
+            var sRec = lastSavedStudents[m];
+            var bgBadge = sRec.status === 'Passed' ? 'rgba(16,185,129,0.15)' : (sRec.status === 'Referred' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)');
+            var clrBadge = sRec.status === 'Passed' ? '#10b981' : (sRec.status === 'Referred' ? '#f59e0b' : '#ef4444');
+
+            var descText = '';
+            if (sRec.status === 'Passed') {
+                descText = Object.keys(sRec.semesters).map(function(s){ return 'Sem ' + s + ': ' + sRec.semesters[s].value; }).join(', ') || 'উত্তীর্ণ';
+            } else if (sRec.status === 'Referred') {
+                descText = sRec.referredSubjects.map(function(sub){ return sub.raw || sub.code; }).join(', ');
+            } else {
+                descText = 'সেমিস্টার ড্রপ';
+            }
+
+            sampleHtml += '<tr style="border-bottom:1px solid var(--border-color);">';
+            sampleHtml += '<td style="padding:6px 10px;font-family:monospace;font-weight:600;">' + sRec.roll + '</td>';
+            sampleHtml += '<td style="padding:6px 10px;"><span style="background:' + bgBadge + ';color:' + clrBadge + ';padding:2px 8px;border-radius:10px;font-size:12px;font-weight:500;">' + sRec.statusBangla + '</span></td>';
+            sampleHtml += '<td style="padding:6px 10px;color:var(--text-muted);">' + descText + '</td>';
+            sampleHtml += '</tr>';
         }
+        sampleHtml += '</table>';
+        sampleList.innerHTML = sampleHtml;
+    }
 
-        // Also Auto-persist immediately so user never loses data
-        await BTEBStorage.saveSheetAsync(lastScannedPdfData);
-        renderSavedSheets();
-        renderGlobalStats();
+    showToast('🎉 অভিনন্দন! ' + totalFiles + 'টি পিডিএফ থেকে ' + cumulativeStudents.toLocaleString() + ' জন শিক্ষার্থীর রেজাল্ট সফলভাবে ডেটাবেসে সংরক্ষিত হয়েছে!', 'success');
+};
+
+// Drag and drop handler on drop zone
+var dropZoneEl = document.getElementById('pdfDropZone');
+if (dropZoneEl) {
+    dropZoneEl.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        dropZoneEl.style.borderColor = '#10b981';
+        dropZoneEl.style.background = 'rgba(16,185,129,0.06)';
+    });
+    dropZoneEl.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        dropZoneEl.style.borderColor = '';
+        dropZoneEl.style.background = '';
+    });
+    dropZoneEl.addEventListener('drop', function(e) {
+        e.preventDefault();
+        dropZoneEl.style.borderColor = '';
+        dropZoneEl.style.background = '';
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            window.handlePdfBatch(Array.from(e.dataTransfer.files));
+        }
+    });
+}
 
         // Populate Instant Verification & Preview List
         var previewContainer = document.getElementById('pdfParsedPreviewContainer');

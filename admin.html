@@ -291,26 +291,28 @@
                         </div>
                     </div>
 
-                    <!-- PDF Drag and Drop Area -->
+                    <!-- PDF Drag and Drop Area (Multi-PDF Batch & Queue Ready) -->
                     <div class="pdf-drop-zone" id="pdfDropZone">
-                        <input type="file" id="pdfFileInput" accept="application/pdf" style="display:none;" onchange="handlePdfFileSelected(event)">
+                        <input type="file" id="pdfFileInput" accept="application/pdf" multiple style="display:none;" onchange="handlePdfFilesSelected(event)">
                         <div class="pdf-drop-icon">📑</div>
-                        <h4 class="pdf-drop-title">BTEB বোর্ডের রেজাল্ট PDF ফাইল ড্রপ করুন অথবা ক্লিক করুন</h4>
-                        <p class="pdf-drop-desc">পিডিএফের হাজার হাজার পেজ স্বয়ংক্রিয়ভাবে স্ক্যান করে পাস, রেফার্ড ও ড্রপ আউটের ফলাফল আলাদা করে সেভ হবে</p>
-                        <button type="button" class="btn btn-primary" onclick="document.getElementById('pdfFileInput').click()" style="margin-top:12px;padding:8px 20px;">
-                            📁 PDF ফাইল নির্বাচন করুন (Select PDF)
+                        <h4 class="pdf-drop-title">BTEB বোর্ডের একাধিক রেজাল্ট PDF ফাইল (১০-১৫টি বা তার বেশি) ড্রপ করুন অথবা ক্লিক করুন</h4>
+                        <p class="pdf-drop-desc">
+                            প্রতিটি ১০০০+ পৃষ্ঠার বিশাল রেজাল্ট পিডিএফ কোনো হ্যাং বা ব্রাউজার ফ্রিজিং ছাড়াই ব্যাকগ্রাউন্ড কিউ সিস্টেমে পেজ-বাই-পেজ স্বয়ংক্রিয়ভাবে পার্স ও ইনডেক্স হবে।
+                        </p>
+                        <button type="button" class="btn btn-primary" onclick="document.getElementById('pdfFileInput').click()" style="margin-top:12px;padding:9px 24px;font-size:14.5px;font-weight:600;">
+                            📁 একসাথে একাধিক PDF ফাইল নির্বাচন করুন (Select Multiple PDFs)
                         </button>
                         <div id="pdfFileNameDisplay" class="pdf-file-name hidden"></div>
                     </div>
 
-                    <!-- PDF Live Scanning Progress Bar -->
+                    <!-- PDF Live Scanning & Batch Queue Progress Bar -->
                     <div class="chunk-progress-wrapper hidden" id="pdfProgressWrapper" style="margin-top:16px;">
                         <div class="progress-header">
                             <span class="progress-title">
                                 <span class="spinner-btn" style="border-top-color:#ef4444;border-color:rgba(239,68,68,0.2);"></span>
-                                <span id="pdfProgressTitle">পিডিএফ স্ক্যান করা হচ্ছে (Reading PDF pages)...</span>
+                                <span id="pdfProgressTitle">পিডিএফ স্ক্যান কিউ চলছে...</span>
                             </span>
-                            <span class="progress-pct" id="pdfProgressPct" style="color:#ef4444;">0%</span>
+                            <span class="progress-pct" id="pdfProgressPct" style="color:#ef4444;font-weight:700;">0%</span>
                         </div>
                         <div class="progress-track">
                             <div class="progress-bar-fill" id="pdfProgressBarFill" style="width: 0%; background: linear-gradient(90deg, #ef4444, #f59e0b, #10b981);"></div>
@@ -318,6 +320,12 @@
                         <div class="progress-status-meta">
                             <span id="pdfPageStatus">পৃষ্ঠা: ০ / ০</span>
                             <span id="pdfSpeedStatus">গতি: হিসাব হচ্ছে...</span>
+                        </div>
+
+                        <!-- Live File Batch Queue Details -->
+                        <div id="pdfQueueWrapper" class="hidden" style="margin-top:12px;max-height:180px;overflow-y:auto;background:rgba(0,0,0,0.03);border:1px solid var(--border-color);border-radius:8px;padding:8px 12px;font-size:12.5px;">
+                            <div style="font-weight:600;margin-bottom:6px;color:var(--text-muted);">📋 ব্যাচ কিউ স্ট্যাটাস (Batch File Queue):</div>
+                            <div id="pdfQueueList"></div>
                         </div>
                     </div>
 
@@ -435,8 +443,6 @@
                                 <span class="toolbar-badge" id="detectedRollBadge">ডিটেক্টেড রোল: 0</span>
                             </div>
                             <div class="toolbar-right">
-                                <button type="button" class="btn btn-outline" id="loadSampleTextBtn" style="display:none;">
-                                </button>
                                 <button type="button" class="btn btn-outline" id="clearEditorBtn" style="padding:4px 10px;font-size:0.8rem;color:#ef4444;">
                                     🧹 পরিষ্কার করুন
                                 </button>
@@ -604,7 +610,7 @@
                                 type="text" 
                                 id="searchEditRoll" 
                                 class="form-input" 
-                                placeholder="যেমন: 100001, 100002, 100003..."
+                                placeholder="শিক্ষার্থীর রোল নম্বর লিখুন..."
                             />
                         </div>
                         <button type="button" class="btn btn-primary" id="btnSearchSingleRoll" onclick="searchStudentForEdit()" style="height:44px;padding:0 22px;">
@@ -646,7 +652,7 @@
                                     type="text" 
                                     id="srRoll" 
                                     class="form-input" 
-                                    placeholder="যেমন: 100001" 
+                                    placeholder="যেমন: 601234" 
                                     required
                                 />
                             </div>

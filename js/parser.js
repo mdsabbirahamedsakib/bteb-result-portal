@@ -34,6 +34,21 @@ const BTEBParser = (function () {
     }
 
     /**
+     * Complete Bulletproof Roll Cleaner:
+     * - Strips Bengali digits to English
+     * - Removes "Roll:", "Roll No:", "#", whitespace, dashes
+     * - Extracts pure 5 to 8 digit roll number
+     */
+    function cleanRollNumber(input) {
+        if (!input) return '';
+        var s = String(input).trim();
+        s = s.replace(/[০-৯]/g, function (d) { return BENGALI_DIGITS[d] || d; });
+        s = s.replace(/^(?:roll\s*(?:no)?[.:\-\s]*|#\s*)/i, '').trim();
+        var match = s.match(/\b\d{5,8}\b/);
+        return match ? match[0] : s.replace(/[^\w]/g, '').trim();
+    }
+
+    /**
      * Clean PDF artifacts: table pipes (|), duplicate spaces, and weird tabs
      */
     function cleanRawPdfText(text) {
@@ -618,6 +633,7 @@ const BTEBParser = (function () {
 
     return {
         normalizeDigits: normalizeDigits,
+        cleanRollNumber: cleanRollNumber,
         findRoll: findRoll,
         parseAll: parseAll,
         parseStudentBody: parseStudentBody,
