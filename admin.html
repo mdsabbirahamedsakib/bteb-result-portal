@@ -8,8 +8,8 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <link rel="stylesheet" href="css/style.css?v=20261111_3">
-    <link rel="stylesheet" href="css/admin.css?v=20261111_5">
+    <link rel="stylesheet" href="css/style.css?v=20261111_6">
+    <link rel="stylesheet" href="css/admin.css?v=20261111_6">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -251,6 +251,109 @@
                     <button type="button" class="btn btn-outline" id="saveMaintenanceMsgBtn" style="height:50px;white-space:nowrap;">
                         💾 ম্যাসেজ সেভ
                     </button>
+                </div>
+            </div>
+
+            <!-- Supabase Multi-Device Cloud Database Configuration & Sync Card -->
+            <div class="admin-section" id="supabaseConfigSection">
+                <div class="admin-section-header" style="flex-wrap:wrap;gap:10px;">
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <h3 class="admin-section-title">☁️ Supabase ক্লাউড ডেটাবেস ও মাল্টি-ডিভাইস সিঙ্ক (Permanent Global DB)</h3>
+                        <span class="toolbar-badge" id="supabaseStatusBadge" style="background:rgba(100,116,139,0.14);color:#64748b;border:1px solid rgba(100,116,139,0.3);">
+                            ⚪ কনফিগার করা হয়নি (লোকাল মোড)
+                        </span>
+                    </div>
+                    <span class="toolbar-badge" id="supabaseRowCountBadge">টেবিল: bteb_results</span>
+                </div>
+
+                <div class="admin-section-body">
+                    <p style="color:var(--text-muted);font-size:0.87rem;line-height:1.65;margin-bottom:14px;">
+                        এখানে আপনার Supabase Project URL ও Anon Key সেট করলে আপলোড করা প্রতিটি BTEB রেজাল্ট PDF-এর রোল, সেমিস্টারভিত্তিক জিপিএ (gpa1 থেকে gpa5) এবং রেফার্ড বিষয় স্বয়ংক্রিয়ভাবে ব্যাচ আকারে bteb_results টেবিলে সেভ হবে ও যেকোনো ফোন বা ল্যাপটপের স্টুডেন্ট পেজ থেকে দেখা যাবে। সব ডিভাইসে অটো-কানেক্টের জন্য ডাউনলোড করা supabase_config.js ফাইলটি js/ ফোল্ডারে রেখে GitHub-এ পুশ করুন।
+                    </p>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+                        <div class="form-group">
+                            <label for="supabaseUrlInput" class="form-label">Supabase Project URL:</label>
+                            <input type="url" id="supabaseUrlInput" class="form-input" placeholder="https://your-project-id.supabase.co">
+                        </div>
+                        <div class="form-group">
+                            <label for="supabaseAnonKeyInput" class="form-label">Supabase Public Anon Key:</label>
+                            <input type="password" id="supabaseAnonKeyInput" class="form-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+                        </div>
+                    </div>
+
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                        <button type="button" class="btn btn-primary" id="supabaseSaveTestBtn" style="padding:10px 18px;">
+                            🔌 সেভ ও কানেকশন যাচাই
+                        </button>
+                        <button type="button" class="btn btn-outline" id="supabaseSyncAllBtn" style="padding:10px 18px;">
+                            ☁️ লোকাল সব রেজাল্ট Supabase-এ সিঙ্ক করুন
+                        </button>
+                        <button type="button" class="btn btn-outline" id="supabaseDownloadConfigBtn" style="padding:10px 16px;">
+                            📥 supabase_config.js ডাউনলোড
+                        </button>
+                        <button type="button" class="btn btn-outline" id="supabaseToggleSqlBtn" style="padding:10px 16px;">
+                            🗄️ SQL স্কিমা দেখুন / কপি
+                        </button>
+                    </div>
+
+                    <!-- Batch Sync Progress Bar (used when syncing existing local DB to Supabase) -->
+                    <div class="chunk-progress-wrapper hidden" id="supabaseSyncProgressWrap" style="margin-top:14px;">
+                        <div class="progress-header">
+                            <span class="progress-title" id="supabaseSyncProgressTitle">☁️ Supabase ক্লাউডে ব্যাচ সিঙ্ক চলছে...</span>
+                            <span class="progress-pct" id="supabaseSyncProgressPct" style="color:#10b981;font-weight:700;">0%</span>
+                        </div>
+                        <div class="progress-track">
+                            <div class="progress-bar-fill" id="supabaseSyncProgressFill" style="width:0%;background:linear-gradient(90deg,#3b82f6,#10b981);"></div>
+                        </div>
+                        <div class="progress-status-meta">
+                            <span id="supabaseSyncCountMeta">০ / ০ রোল</span>
+                            <span id="supabaseSyncLatencyMeta">ব্যাচ সাইজ: ৫০০</span>
+                        </div>
+                    </div>
+
+                    <!-- Collapsible Supabase Table SQL Guide -->
+                    <div id="supabaseSqlBox" class="hidden" style="margin-top:14px;padding:14px;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-main);">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+                            <strong style="font-size:0.88rem;color:var(--secondary);">📋 Supabase SQL Editor-এ নিচের কোডটি একবার Run করুন (database/supabase_schema.sql):</strong>
+                            <button type="button" class="btn btn-outline" id="supabaseCopySqlBtn" style="padding:4px 12px;font-size:0.8rem;">
+                                📋 SQL কপি করুন
+                            </button>
+                        </div>
+                        <pre id="supabaseSqlPreview" style="margin:0;padding:10px;border-radius:8px;background:#0f172a;color:#e2e8f0;font-size:0.78rem;line-height:1.5;overflow-x:auto;max-height:220px;">CREATE TABLE IF NOT EXISTS public.bteb_results (
+    roll VARCHAR(20) PRIMARY KEY,
+    institute_code VARCHAR(20),
+    institute_name TEXT,
+    gpa1 VARCHAR(30),
+    gpa2 VARCHAR(30),
+    gpa3 VARCHAR(30),
+    gpa4 VARCHAR(30),
+    gpa5 VARCHAR(30),
+    gpa6 VARCHAR(30),
+    gpa7 VARCHAR(30),
+    gpa8 VARCHAR(30),
+    referred JSONB NOT NULL DEFAULT '[]'::jsonb,
+    referred_subjects JSONB NOT NULL DEFAULT '[]'::jsonb,
+    semesters JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status VARCHAR(30) NOT NULL DEFAULT 'Passed',
+    status_bangla VARCHAR(80),
+    status_type VARCHAR(20) NOT NULL DEFAULT 'success',
+    latest_semester INTEGER DEFAULT 5,
+    regulation VARCHAR(20) DEFAULT '2022',
+    exam_year VARCHAR(16) DEFAULT '2024',
+    source VARCHAR(20) DEFAULT 'pdf',
+    source_priority INTEGER DEFAULT 10,
+    source_label TEXT,
+    sheet_id VARCHAR(80),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.bteb_results ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public read bteb_results" ON public.bteb_results FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "Public insert bteb_results" ON public.bteb_results FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "Public update bteb_results" ON public.bteb_results FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Public delete bteb_results" ON public.bteb_results FOR DELETE TO anon, authenticated USING (true);</pre>
+                    </div>
                 </div>
             </div>
 
@@ -1102,19 +1205,20 @@
                     <span class="tag tag-success">১০০% রেডি ও স্বয়ংসম্পূর্ণ</span>
                 </div>
 
-                <div class="admin-section-body" style="line-height:1.7;color:#334155;font-size:0.92rem;">
+                <div class="admin-section-body" style="line-height:1.7;color:var(--text-muted);font-size:0.92rem;">
                     <p style="margin-bottom:12px;">
-                        এই প্রজেক্টটি কোনো সার্ভার-সাইড ব্যাকএন্ড (Node.js/PHP) ছাড়াই সম্পূর্ণ ক্লায়েন্ট সাইড এবং ব্রাউজারের <strong>LocalStorage</strong>-এ কাজ করে। তাই এটি যেকোনো ফ্রি বা পেইড ওয়েব হোস্টিংয়ে তাৎক্ষণিক চলবে:
+                        এই প্রজেক্টটি Supabase ক্লাউড ডেটাবেস এবং ব্রাউজারের IndexedDB / LocalStorage সাপোর্ট করে। তাই যেকোনো ফ্রি বা পেইড ওয়েব হোস্টিংয়ে এটি তাৎক্ষণিক চলবে:
                     </p>
 
-                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:var(--radius-md);padding:16px;margin-bottom:16px;">
+                    <div style="background:var(--bg-main);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:16px;margin-bottom:16px;">
                         <h4 style="font-size:0.95rem;font-weight:700;color:var(--secondary);margin-bottom:8px;">📁 ফোল্ডার কাঠামো:</h4>
-                        <code style="font-size:0.85rem;color:#0f172a;line-height:1.8;display:block;">
+                        <code style="font-size:0.85rem;color:var(--secondary);line-height:1.8;display:block;">
                             ├── index.html &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(স্টুডেন্ট রেজাল্ট সার্চ পেজ)<br>
                             ├── admin.html &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(অ্যাডমিন ড্যাশবোর্ড ও কন্ট্রোল প্যানেল)<br>
                             ├── materials.html &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(বই, নোটস ও সুপার সাজেশন লাইব্রেরি)<br>
+                            ├── database/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(supabase_schema.sql, visitor_logs.sql)<br>
                             ├── css/ [style.css, admin.css, print.css]<br>
-                            └── js/ &nbsp;[parser.js, data.js, storage.js, app.js, admin.js]
+                            └── js/ &nbsp;[supabase_config.js, supabase_client.js, parser.js, data.js, storage.js, visitor.js, app.js, admin.js]
                         </code>
                     </div>
 
@@ -1379,14 +1483,17 @@
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <!-- Scripts -->
-    <script src="js/parser.js?v=20261111_3"></script>
-    <script src="js/data.js?v=20261111_3"></script>
-    <script src="js/results_database.js?v=20261111_3"></script>
-    <script src="js/storage.js?v=20261111_3"></script>
-    <script src="js/visitor.js?v=20261111_3"></script>
-    <script src="js/admin.js?v=20261111_3"></script>
-    <script src="js/i18n.js?v=20261111_3"></script>
+    <!-- Scripts (including Official @supabase/supabase-js v2 CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase_config.js?v=20261111_6"></script>
+    <script src="js/parser.js?v=20261111_6"></script>
+    <script src="js/supabase_client.js?v=20261111_6"></script>
+    <script src="js/data.js?v=20261111_6"></script>
+    <script src="js/results_database.js?v=20261111_6"></script>
+    <script src="js/storage.js?v=20261111_6"></script>
+    <script src="js/visitor.js?v=20261111_6"></script>
+    <script src="js/admin.js?v=20261111_6"></script>
+    <script src="js/i18n.js?v=20261111_6"></script>
     <script>
         // Tab Switcher for Admin Page
         function switchAdminTab(tabId) {

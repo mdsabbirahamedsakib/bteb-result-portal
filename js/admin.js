@@ -239,6 +239,23 @@ document.addEventListener('DOMContentLoaded', function () {
                         students: res.results
                     });
 
+                    var supaBulkNote = '';
+                    if (typeof BTEBSupabase !== 'undefined' && BTEBSupabase.isConfigured && BTEBSupabase.isConfigured()) {
+                        if (progressStatusText) progressStatusText.textContent = '☁️ Supabase ক্লাউড ডেটাবেসে ব্যাচ সিঙ্ক চলছে...';
+                        var bulkBatch = (BTEBStorage.getMergedStudentsForBatch) ? BTEBStorage.getMergedStudentsForBatch(res.results) : res.results;
+                        var bulkSupa = await BTEBSupabase.batchUpsertStudents(bulkBatch, function (sProg) {
+                            if (progressBarFill) progressBarFill.style.width = sProg.percent + '%';
+                            if (progressPctText) progressPctText.textContent = sProg.percent + '%';
+                            if (progressSpeedText) progressSpeedText.textContent = 'Supabase সিঙ্ক: ' + sProg.uploaded.toLocaleString() + ' / ' + sProg.total.toLocaleString();
+                        });
+                        if (bulkSupa && bulkSupa.success) {
+                            supaBulkNote = ' (Supabase-এ সিঙ্ক সম্পন্ন)';
+                            if (typeof window.refreshSupabaseStatusUI === 'function') window.refreshSupabaseStatusUI();
+                        } else if (bulkSupa && bulkSupa.error) {
+                            supaBulkNote = ' (Supabase ত্রুটি: ' + bulkSupa.error + ')';
+                        }
+                    }
+
                     setTimeout(function () {
                         savePublishBtn.disabled = false;
                         savePublishBtn.innerHTML = '💾 Save & Publish Result';
@@ -255,7 +272,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (cntProcessTime) cntProcessTime.textContent = res.elapsedMs + 'ms';
 
                         showToast(
-                            '✅ সফলভাবে সেভ হয়েছে! মোট ' + res.total.toLocaleString() + 'টি রোল ডেটাবেসে সেভ করা হয়েছে। (উত্তীর্ণ: ' + res.passedCount + ', রেফার্ড: ' + res.referredCount + ', ড্রপ: ' + res.droppedCount + ')',
+                            '✅ সফলভাবে সেভ হয়েছে! মোট ' + res.total.toLocaleString() + 'টি রোল ডেটাবেসে সেভ করা হয়েছে। (উত্তীর্ণ: ' + res.passedCount + ', রেফার্ড: ' + res.referredCount + ', ড্রপ: ' + res.droppedCount + ')' + supaBulkNote,
                             'success'
                         );
 
@@ -414,6 +431,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     renderSavedSheets();
                     renderAdminMaterialsList();
                     loadSiteSettingsUI();
+                    if (result.studentCount > 0 && typeof window.syncLocalResultsToSupabase === 'function' && typeof BTEBSupabase !== 'undefined' && BTEBSupabase.isConfigured && BTEBSupabase.isConfigured()) {
+                        window.syncLocalResultsToSupabase(true);
+                    }
                 } else {
                     showToast('❌ ইমপোর্ট ব্যর্থ: ' + result.error, 'danger');
                 }
@@ -564,11 +584,17 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    window.renderGlobalStats = renderGlobalStats;
+    window.renderSavedSheets = renderSavedSheets;
+
     window.refreshAdminOverviewOnLogin = function () {
         loadServerToggleState();
         renderGlobalStats();
         renderSavedSheets();
         checkDatabaseInstituteHealth();
+        if (typeof window.refreshSupabaseStatusUI === 'function') {
+            window.refreshSupabaseStatusUI();
+        }
     };
 
     function renderSavedSheets() {
@@ -1256,7 +1282,16 @@ window.searchStudentForEdit = async function() {
         return;
     }
 
-    var foundRaw = BTEBStorage.getStudentAsync ? await BTEBStorage.getStudentAsync(roll) : BTEBStorage.findStudentInSheets(roll);
+    var foundRaw = null;
+    if (typeof BTEBSupabase !== 'undefined' && BTEBSupabase.isConfigured && BTEBSupabase.isConfigured()) {
+        try {
+            var supaEditRes = await BTEBSupabase.fetchStudentByRoll(roll);
+            if (supaEditRes && supaEditRes.student) foundRaw = supaEditRes.student;
+        } catch (e) {}
+    }
+    if (!foundRaw) {
+        foundRaw = BTEBStorage.getStudentAsync ? await BTEBStorage.getStudentAsync(roll) : BTEBStorage.findStudentInSheets(roll);
+    }
     var found = foundRaw ? (foundRaw.student ? foundRaw : { student: foundRaw, sheet: (BTEBStorage.getAllSheets().find(function (sh) { return sh.id === foundRaw.sheetId; }) || null) }) : null;
 
     var banner = document.getElementById('singleSearchFoundBanner');
@@ -1412,7 +1447,7 @@ function getFormDataFromSingleResult() {
     };
 }
 
-window.saveSingleResultHandler = function() {
+window.saveSingleResultHandler = async function() {
     var data = getFormDataFromSingleResult();
     if (!data.roll) {
         showToast('⚠️ রোল নম্বর দেওয়া আবশ্যক!', 'warning');
@@ -1421,16 +1456,18 @@ window.saveSingleResultHandler = function() {
 
     var res = BTEBStorage.addOrUpdateStudent(data);
     if (res && res.success) {
+        if (res.cloudPromise) await res.cloudPromise;
+        if (typeof window.refreshSupabaseStatusUI === 'function') await window.refreshSupabaseStatusUI();
         showToast('✅ রোল ' + data.roll + '-এর ফলাফল সফলভাবে ডেটাবেজে সংরক্ষিত হয়েছে!', 'success');
         clearSingleResultForm();
-        renderSavedSheets();
-        renderGlobalStats();
+        if (typeof renderSavedSheets === 'function') renderSavedSheets();
+        if (typeof renderGlobalStats === 'function') renderGlobalStats();
     } else {
         showToast('❌ ফলাফল সেভ করা যায়নি: ' + (res.error || 'অজানা ত্রুটি'), 'danger');
     }
 };
 
-window.updateExistingStudentHandler = function() {
+window.updateExistingStudentHandler = async function() {
     var data = getFormDataFromSingleResult();
     if (!data.roll) {
         showToast('⚠️ রোল নম্বর দেওয়া আবশ্যক!', 'warning');
@@ -1439,16 +1476,18 @@ window.updateExistingStudentHandler = function() {
 
     var res = BTEBStorage.addOrUpdateStudent(data);
     if (res && res.success) {
+        if (res.cloudPromise) await res.cloudPromise;
+        if (typeof window.refreshSupabaseStatusUI === 'function') await window.refreshSupabaseStatusUI();
         showToast('✅ রোল ' + data.roll + '-এর ফলাফল সফলভাবে আপডেট করা হয়েছে!', 'success');
         clearSingleResultForm();
-        renderSavedSheets();
-        renderGlobalStats();
+        if (typeof renderSavedSheets === 'function') renderSavedSheets();
+        if (typeof renderGlobalStats === 'function') renderGlobalStats();
     } else {
         showToast('❌ ফলাফল আপডেট করা যায়নি: ' + (res.error || 'অজানা ত্রুটি'), 'danger');
     }
 };
 
-window.deleteCurrentStudentHandler = function() {
+window.deleteCurrentStudentHandler = async function() {
     var roll = document.getElementById('srRoll').value.trim() || document.getElementById('editingExistingRoll').value.trim();
     if (!roll) {
         showToast('⚠️ কোনো রোল নম্বর পাওয়া যায়নি!', 'warning');
@@ -1458,17 +1497,19 @@ window.deleteCurrentStudentHandler = function() {
     if (confirm('আপনি কি নিশ্চিতভাবে রোল ' + roll + '-এর ফলাফল সম্পূর্ণ মুছে ফেলতে চান?')) {
         var res = BTEBStorage.deleteStudent(roll);
         if (res && res.success) {
+            if (res.cloudPromise) await res.cloudPromise;
+            if (typeof window.refreshSupabaseStatusUI === 'function') await window.refreshSupabaseStatusUI();
             showToast('🗑️ রোল ' + roll + '-এর ফলাফল সফলভাবে মুছে ফেলা হয়েছে!', 'info');
             clearSingleResultForm();
-            renderSavedSheets();
-            renderGlobalStats();
+            if (typeof renderSavedSheets === 'function') renderSavedSheets();
+            if (typeof renderGlobalStats === 'function') renderGlobalStats();
         } else {
             showToast('⚠️ ফলাফল মোছা সম্ভব হয়নি!', 'warning');
         }
     }
 };
 
-window.quickDeleteStudentHandler = function() {
+window.quickDeleteStudentHandler = async function() {
     var rollInput = document.getElementById('quickDeleteRollInput');
     var roll = rollInput ? rollInput.value.trim() : '';
 
@@ -1481,23 +1522,26 @@ window.quickDeleteStudentHandler = function() {
     if (confirm('সতর্কতা: আপনি কি নিশ্চিতভাবে রোল ' + roll + '-এর ফলাফল মুছে ফেলতে চান?')) {
         var res = BTEBStorage.deleteStudent(roll);
         if (res && res.success) {
+            if (res.cloudPromise) await res.cloudPromise;
+            if (typeof window.refreshSupabaseStatusUI === 'function') await window.refreshSupabaseStatusUI();
             showToast('🗑️ রোল ' + roll + '-এর ফলাফল সফলভাবে মুছে ফেলা হয়েছে!', 'info');
             if (rollInput) rollInput.value = '';
-            renderSavedSheets();
-            renderGlobalStats();
+            if (typeof renderSavedSheets === 'function') renderSavedSheets();
+            if (typeof renderGlobalStats === 'function') renderGlobalStats();
         } else {
             showToast('⚠️ রোল ' + roll + ' খুঁজে পাওয়া যায়নি!', 'warning');
         }
     }
 };
 
-window.confirmDeleteAllResults = function() {
+window.confirmDeleteAllResults = async function() {
     if (confirm('⚠️ চরম সতর্কবার্তা: আপনি কি সত্যিই সকল সেভ করা রেজাল্ট শীট এবং ফলাফল মুছে ফেলতে চান?')) {
         if (confirm('এই কাজটি ফিরিয়ে আনা যাবে না! নিশ্চিত করার জন্য ওকে চাপুন:')) {
-            BTEBStorage.deleteAllSheets();
+            await BTEBStorage.deleteAllSheets();
             renderSavedSheets();
             renderGlobalStats();
             clearSingleResultForm();
+            if (typeof window.refreshSupabaseStatusUI === 'function') window.refreshSupabaseStatusUI();
             showToast('🗑️ সকল রেজাল্ট সফলভাবে মুছে ফেলা হয়েছে!', 'danger');
         }
     }
@@ -1696,6 +1740,9 @@ window.handlePdfBatch = async function(fileList) {
     var cumulativeReferred = 0;
     var cumulativeDropped = 0;
     var cumulativePages = 0;
+    var cumulativeSupabaseSynced = 0;
+    var supabaseSyncErrors = [];
+    var supabaseActive = (typeof BTEBSupabase !== 'undefined' && BTEBSupabase.isConfigured && BTEBSupabase.isConfigured());
     var lastSavedStudents = [];
     var tBatchStart = performance.now();
 
@@ -1755,11 +1802,45 @@ window.handlePdfBatch = async function(fileList) {
                 priority: 10
             });
 
+            // Auto batch-upsert parsed results into Supabase bteb_results table (gpa1..gpa5+, referred, institute)
+            var fileSyncedToSupabase = false;
+            if (supabaseActive && fileStudents.length > 0) {
+                if (badgeEl) {
+                    badgeEl.style.background = 'rgba(59,130,246,0.15)';
+                    badgeEl.style.color = '#3b82f6';
+                    badgeEl.textContent = '☁️ Supabase সিঙ্ক 0%';
+                }
+                if (progTitle) {
+                    progTitle.textContent = '☁️ Supabase-এ ব্যাচ আপলোড চলছে — ' + curFile.name;
+                }
+                var batchToSync = (typeof BTEBStorage.getMergedStudentsForBatch === 'function')
+                    ? BTEBStorage.getMergedStudentsForBatch(fileStudents)
+                    : fileStudents;
+                var supaBatchRes = await BTEBSupabase.batchUpsertStudents(batchToSync, function (sProg) {
+                    if (badgeEl) badgeEl.textContent = '☁️ Supabase ' + sProg.percent + '%';
+                    if (pageStatus) {
+                        pageStatus.textContent = '☁️ Supabase সিঙ্ক (' + curFile.name + '): ' + sProg.uploaded.toLocaleString() + ' / ' + sProg.total.toLocaleString() + ' রোল (' + sProg.percent + '%)';
+                    }
+                    if (speedStatus) {
+                        speedStatus.textContent = 'ব্যাচ ' + sProg.batchIndex + ' / ' + sProg.totalBatches + ' | টেবিল: bteb_results';
+                    }
+                });
+                if (supaBatchRes && supaBatchRes.success) {
+                    cumulativeSupabaseSynced += supaBatchRes.uploadedCount;
+                    fileSyncedToSupabase = true;
+                    if (typeof window.refreshSupabaseStatusUI === 'function') window.refreshSupabaseStatusUI();
+                } else if (supaBatchRes && supaBatchRes.error) {
+                    supabaseSyncErrors.push(curFile.name + ': ' + supaBatchRes.error);
+                }
+            }
+
             // Update queue item badge
             if (badgeEl) {
                 badgeEl.style.background = 'rgba(16,185,129,0.15)';
                 badgeEl.style.color = '#10b981';
-                badgeEl.textContent = '✅ সম্পন্ন (' + fileStudents.length.toLocaleString() + ' রোল)';
+                badgeEl.textContent = fileSyncedToSupabase
+                    ? ('✅ সম্পন্ন + ☁️ Supabase (' + fileStudents.length.toLocaleString() + ' রোল)')
+                    : ('✅ সম্পন্ন (' + fileStudents.length.toLocaleString() + ' রোল)');
             }
 
             // Update Live Stats Grid
@@ -1795,10 +1876,14 @@ window.handlePdfBatch = async function(fileList) {
     if (progFill) progFill.style.width = '100%';
     if (progPct) progPct.textContent = '100%';
     if (progTitle) {
-        progTitle.textContent = '✅ সকল PDF পার্স ও সেভ সম্পন্ন! (All ' + totalFiles + ' PDFs Indexed)';
+        progTitle.textContent = (supabaseActive && cumulativeSupabaseSynced > 0)
+            ? '✅ সকল PDF পার্স, IndexedDB ও Supabase সিঙ্ক সম্পন্ন!'
+            : ('✅ সকল PDF পার্স ও সেভ সম্পন্ন! (All ' + totalFiles + ' PDFs Indexed)');
     }
     if (pageStatus) {
-        pageStatus.textContent = '🎉 সর্বমোট ' + totalFiles + 'টি ফাইলের ' + cumulativePages.toLocaleString() + ' পৃষ্ঠা সফলভাবে স্ক্যান ও স্থায়ী ডেটাবেসে সেভ হয়েছে!';
+        pageStatus.textContent = (supabaseActive && cumulativeSupabaseSynced > 0)
+            ? ('🎉 সর্বমোট ' + totalFiles + 'টি ফাইল (' + cumulativePages.toLocaleString() + ' পৃষ্ঠা) স্ক্যান ও ' + cumulativeSupabaseSynced.toLocaleString() + 'টি রোল Supabase ক্লাউড ডেটাবেসে সেভ হয়েছে!')
+            : ('🎉 সর্বমোট ' + totalFiles + 'টি ফাইলের ' + cumulativePages.toLocaleString() + ' পৃষ্ঠা সফলভাবে স্ক্যান ও স্থায়ী ডেটাবেসে সেভ হয়েছে!');
     }
 
     // Show Confirmation Box
@@ -1810,11 +1895,17 @@ window.handlePdfBatch = async function(fileList) {
     if (saveActionWrap) saveActionWrap.classList.remove('hidden');
     if (detectedCountEl) detectedCountEl.textContent = cumulativeStudents.toLocaleString();
     if (confirmSaveBtn) {
-        confirmSaveBtn.innerHTML = '✅ ডেটাবেসে স্থায়ীভাবে সংরক্ষিত হয়েছে!';
+        confirmSaveBtn.innerHTML = (supabaseActive && cumulativeSupabaseSynced > 0)
+            ? '✅ IndexedDB ও Supabase ডেটাবেসে সংরক্ষিত!'
+            : '✅ ডেটাবেসে স্থায়ীভাবে সংরক্ষিত হয়েছে!';
         confirmSaveBtn.disabled = true;
     }
     if (saveSuccessAlert) {
-        saveSuccessAlert.textContent = '✅ অভিনন্দন! ' + totalFiles + 'টি পিডিএফ থেকে সর্বমোট ' + cumulativeStudents.toLocaleString() + ' জন শিক্ষার্থীর রেজাল্ট সফলভাবে ডেটাবেসে সংরক্ষিত হয়েছে এবং স্টুডেন্ট পেজে উন্মুক্ত হয়েছে!';
+        saveSuccessAlert.textContent = (supabaseActive && cumulativeSupabaseSynced > 0)
+            ? ('✅ অভিনন্দন! ' + totalFiles + 'টি পিডিএফ থেকে সর্বমোট ' + cumulativeStudents.toLocaleString() + ' জন শিক্ষার্থীর রেজাল্ট (' + cumulativeSupabaseSynced.toLocaleString() + 'টি ক্লাউডে) Supabase ও লোকাল ডেটাবেসে সেভ হয়েছে!')
+            : (supabaseActive && supabaseSyncErrors.length > 0
+                ? ('⚠️ লোকাল ডেটাবেসে ' + cumulativeStudents.toLocaleString() + 'টি রেজাল্ট সেভ হয়েছে, তবে Supabase সিঙ্ক ত্রুটি: ' + supabaseSyncErrors[0])
+                : ('✅ অভিনন্দন! ' + totalFiles + 'টি পিডিএফ থেকে সর্বমোট ' + cumulativeStudents.toLocaleString() + ' জন শিক্ষার্থীর রেজাল্ট সফলভাবে ডেটাবেসে সংরক্ষিত হয়েছে এবং স্টুডেন্ট পেজে উন্মুক্ত হয়েছে!'));
         saveSuccessAlert.classList.remove('hidden');
     }
 
@@ -1873,7 +1964,14 @@ window.handlePdfBatch = async function(fileList) {
                 return;
             }
 
-            var found = BTEBStorage.getStudentAsync ? await BTEBStorage.getStudentAsync(queryRoll) : BTEBStorage.getStudent(queryRoll);
+            var found = null;
+            if (typeof BTEBSupabase !== 'undefined' && BTEBSupabase.isConfigured && BTEBSupabase.isConfigured()) {
+                var supaLookup = await BTEBSupabase.fetchStudentByRoll(queryRoll);
+                if (supaLookup && supaLookup.student) found = supaLookup.student;
+            }
+            if (!found) {
+                found = BTEBStorage.getStudentAsync ? await BTEBStorage.getStudentAsync(queryRoll) : BTEBStorage.getStudent(queryRoll);
+            }
             testOut.classList.remove('hidden');
             if (found) {
                 var statusColor = found.status === 'Passed' ? '#10b981' : (found.status === 'Referred' ? '#f59e0b' : '#ef4444');
@@ -1908,6 +2006,10 @@ window.handlePdfBatch = async function(fileList) {
         downloadJsonBtn.onclick = function() {
             BTEBStorage.exportDatabaseAsJSON();
         };
+    }
+
+    if (supabaseActive && typeof window.refreshSupabaseStatusUI === 'function') {
+        await window.refreshSupabaseStatusUI();
     }
 
     showToast('🎉 অভিনন্দন! ' + totalFiles + 'টি পিডিএফ থেকে ' + cumulativeStudents.toLocaleString() + ' জন শিক্ষার্থীর রেজাল্ট সফলভাবে ডেটাবেসে সংরক্ষিত হয়েছে!', 'success');
@@ -2282,6 +2384,216 @@ if (dropZoneEl) {
         document.addEventListener('DOMContentLoaded', wireVisitorEventsOnce);
     } else {
         wireVisitorEventsOnce();
+    }
+})();
+
+// ==========================================================================
+// Supabase Cloud Sync Admin Panel Controller
+// ==========================================================================
+(function () {
+    'use strict';
+
+    var supabaseEventsWired = false;
+
+    function notify(msg, type) {
+        if (typeof window.showToast === 'function') {
+            window.showToast(msg, type || 'info');
+        }
+    }
+
+    function setBadgeVisual(badgeEl, text, tone) {
+        if (!badgeEl) return;
+        badgeEl.textContent = text;
+        if (tone === 'success') {
+            badgeEl.style.background = 'rgba(16,185,129,0.14)';
+            badgeEl.style.color = '#10b981';
+            badgeEl.style.border = '1px solid rgba(16,185,129,0.35)';
+        } else if (tone === 'danger') {
+            badgeEl.style.background = 'rgba(239,68,68,0.14)';
+            badgeEl.style.color = '#ef4444';
+            badgeEl.style.border = '1px solid rgba(239,68,68,0.35)';
+        } else {
+            badgeEl.style.background = 'rgba(100,116,139,0.14)';
+            badgeEl.style.color = '#64748b';
+            badgeEl.style.border = '1px solid rgba(100,116,139,0.3)';
+        }
+    }
+
+    window.refreshSupabaseStatusUI = async function () {
+        if (typeof BTEBSupabase === 'undefined') return;
+        var urlInput = document.getElementById('supabaseUrlInput');
+        var keyInput = document.getElementById('supabaseAnonKeyInput');
+        var statusBadge = document.getElementById('supabaseStatusBadge');
+        var countBadge = document.getElementById('supabaseRowCountBadge');
+
+        var cfg = BTEBSupabase.getConfig();
+        if (urlInput && document.activeElement !== urlInput) {
+            urlInput.value = /YOUR_PROJECT_ID/i.test(cfg.url) ? '' : cfg.url;
+        }
+        if (keyInput && document.activeElement !== keyInput) {
+            keyInput.value = /YOUR_SUPABASE_ANON_KEY/i.test(cfg.anonKey) ? '' : cfg.anonKey;
+        }
+
+        if (!BTEBSupabase.isConfigured()) {
+            setBadgeVisual(statusBadge, '⚪ কনফিগার করা হয়নি (লোকাল মোড)', 'neutral');
+            if (countBadge) countBadge.textContent = 'টেবিল: ' + cfg.tableName;
+            return;
+        }
+
+        if (typeof BTEBStorage === 'undefined' || !BTEBStorage.isAdminLoggedIn()) {
+            setBadgeVisual(statusBadge, '🟡 কনফিগারড (যাচাই অপেক্ষমাণ)', 'neutral');
+            return;
+        }
+
+        var conn = await BTEBSupabase.testConnection();
+        if (conn && conn.connected) {
+            setBadgeVisual(statusBadge, '🟢 Supabase সংযুক্ত (' + conn.latencyMs + 'ms)', 'success');
+            if (countBadge) {
+                countBadge.textContent = '☁️ ক্লাউড রেকর্ড: ' + Number(conn.totalRows || 0).toLocaleString() + 'টি (' + cfg.tableName + ')';
+            }
+        } else {
+            setBadgeVisual(statusBadge, '🔴 কানেকশন ত্রুটি', 'danger');
+            if (countBadge) countBadge.textContent = (conn && conn.error) ? conn.error : 'টেবিল অনুপস্থিত';
+        }
+    };
+
+    window.syncLocalResultsToSupabase = async function (silentIfEmpty) {
+        if (typeof BTEBSupabase === 'undefined' || !BTEBSupabase.isConfigured()) {
+            notify('⚠️ প্রথমে Supabase Project URL ও Anon Key সেভ করুন!', 'warning');
+            return { success: false };
+        }
+
+        var progWrap = document.getElementById('supabaseSyncProgressWrap');
+        var progTitle = document.getElementById('supabaseSyncProgressTitle');
+        var progPct = document.getElementById('supabaseSyncProgressPct');
+        var progFill = document.getElementById('supabaseSyncProgressFill');
+        var countMeta = document.getElementById('supabaseSyncCountMeta');
+        var latencyMeta = document.getElementById('supabaseSyncLatencyMeta');
+        var syncBtn = document.getElementById('supabaseSyncAllBtn');
+
+        var allMap = (typeof BTEBStorage !== 'undefined' && BTEBStorage.getAllStudentsAsync)
+            ? await BTEBStorage.getAllStudentsAsync()
+            : {};
+        var studentList = Object.keys(allMap).map(function (r) { return allMap[r]; });
+
+        if (studentList.length === 0) {
+            if (!silentIfEmpty) {
+                notify('ℹ️ Supabase-এ পাঠানোর মতো কোনো লোকাল রেজাল্ট পাওয়া যায়নি।', 'info');
+            }
+            return { success: true, uploadedCount: 0 };
+        }
+
+        if (progWrap) progWrap.classList.remove('hidden');
+        if (progTitle) progTitle.textContent = '☁️ Supabase ক্লাউডে ব্যাচ সিঙ্ক চলছে...';
+        if (progPct) progPct.textContent = '0%';
+        if (progFill) progFill.style.width = '0%';
+        if (syncBtn) syncBtn.disabled = true;
+
+        var res = await BTEBSupabase.batchUpsertStudents(studentList, function (prog) {
+            if (progPct) progPct.textContent = prog.percent + '%';
+            if (progFill) progFill.style.width = prog.percent + '%';
+            if (countMeta) countMeta.textContent = prog.uploaded.toLocaleString() + ' / ' + prog.total.toLocaleString() + ' রোল';
+            if (latencyMeta) latencyMeta.textContent = 'ব্যাচ: ' + prog.batchIndex + ' / ' + prog.totalBatches;
+        });
+
+        if (syncBtn) syncBtn.disabled = false;
+
+        if (res && res.success) {
+            if (progTitle) progTitle.textContent = '✅ Supabase ক্লাউড সিঙ্ক সম্পন্ন!';
+            notify('✅ মোট ' + res.uploadedCount.toLocaleString() + ' জন শিক্ষার্থীর রেজাল্ট Supabase-এ সিঙ্ক হয়েছে (' + res.elapsedMs + 'ms)!', 'success');
+            await window.refreshSupabaseStatusUI();
+        } else {
+            if (progTitle) progTitle.textContent = '❌ Supabase সিঙ্ক ব্যর্থ হয়েছে';
+            notify('❌ Supabase সিঙ্ক ত্রুটি: ' + (res && res.error ? res.error : 'অজানা ত্রুটি'), 'danger');
+        }
+        return res;
+    };
+
+    function wireSupabaseEventsOnce() {
+        if (supabaseEventsWired) return;
+        supabaseEventsWired = true;
+
+        var saveTestBtn = document.getElementById('supabaseSaveTestBtn');
+        var syncAllBtn = document.getElementById('supabaseSyncAllBtn');
+        var downloadCfgBtn = document.getElementById('supabaseDownloadConfigBtn');
+        var toggleSqlBtn = document.getElementById('supabaseToggleSqlBtn');
+        var copySqlBtn = document.getElementById('supabaseCopySqlBtn');
+
+        if (saveTestBtn) {
+            saveTestBtn.addEventListener('click', async function () {
+                if (typeof BTEBSupabase === 'undefined') return;
+                var urlEl = document.getElementById('supabaseUrlInput');
+                var keyEl = document.getElementById('supabaseAnonKeyInput');
+                var urlVal = urlEl ? urlEl.value.trim() : '';
+                var keyVal = keyEl ? keyEl.value.trim() : '';
+
+                if (!urlVal || !keyVal) {
+                    notify('⚠️ Supabase Project URL এবং Anon Key উভয়ই দিন!', 'warning');
+                    return;
+                }
+
+                saveTestBtn.disabled = true;
+                BTEBSupabase.saveConfig({ url: urlVal, anonKey: keyVal });
+                var conn = await BTEBSupabase.testConnection();
+                saveTestBtn.disabled = false;
+
+                await window.refreshSupabaseStatusUI();
+                if (conn && conn.connected) {
+                    notify('✅ Supabase কানেকশন সফল! টেবিলে ' + Number(conn.totalRows || 0).toLocaleString() + 'টি রেকর্ড রয়েছে (' + conn.latencyMs + 'ms)।', 'success');
+                } else {
+                    notify('❌ Supabase কানেকশন ব্যর্থ: ' + (conn && conn.error ? conn.error : 'URL/Key বা SQL টেবিল যাচাই করুন'), 'danger');
+                }
+            });
+        }
+
+        if (syncAllBtn) {
+            syncAllBtn.addEventListener('click', function () {
+                window.syncLocalResultsToSupabase(false);
+            });
+        }
+
+        if (downloadCfgBtn) {
+            downloadCfgBtn.addEventListener('click', function () {
+                if (typeof BTEBSupabase === 'undefined') return;
+                var urlEl = document.getElementById('supabaseUrlInput');
+                var keyEl = document.getElementById('supabaseAnonKeyInput');
+                var u = urlEl ? urlEl.value.trim() : '';
+                var k = keyEl ? keyEl.value.trim() : '';
+                if (u && k) BTEBSupabase.saveConfig({ url: u, anonKey: k });
+                BTEBSupabase.downloadConfigFile(u || undefined, k || undefined);
+                notify('📥 supabase_config.js ডাউনলোড সম্পন্ন! এটি js/ ফোল্ডারে রিপ্লেস করে GitHub-এ পুশ করুন।', 'success');
+            });
+        }
+
+        if (toggleSqlBtn) {
+            toggleSqlBtn.addEventListener('click', function () {
+                var box = document.getElementById('supabaseSqlBox');
+                if (box) box.classList.toggle('hidden');
+            });
+        }
+
+        if (copySqlBtn) {
+            copySqlBtn.addEventListener('click', async function () {
+                var pre = document.getElementById('supabaseSqlPreview');
+                if (!pre) return;
+                try {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(pre.textContent);
+                    }
+                    notify('📋 Supabase SQL স্কিমা ক্লিপবোর্ডে কপি হয়েছে!', 'success');
+                } catch (e) {
+                    notify('ℹ️ SQL বক্স থেকে টেক্সট সিলেক্ট করে কপি করুন।', 'info');
+                }
+            });
+        }
+
+        window.refreshSupabaseStatusUI();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', wireSupabaseEventsOnce);
+    } else {
+        wireSupabaseEventsOnce();
     }
 })();
 

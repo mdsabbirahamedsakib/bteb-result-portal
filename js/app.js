@@ -251,10 +251,22 @@ document.addEventListener('DOMContentLoaded', function () {
         searchBtn.innerHTML = '<span class="spinner"></span> অনুসন্ধান চলছে...';
 
         var t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-
-        // 1. Check Unified BTEBStorage (Always consult Async IndexedDB + LocalStorage + Memory so stale LocalStorage never hides Institute/EIIN)
         var student = null;
-        if (typeof BTEBStorage !== 'undefined') {
+
+        // 0. Primary Global Real-Time Supabase Query (Device-independent instant lookup)
+        if (typeof BTEBSupabase !== 'undefined' && BTEBSupabase.isConfigured && BTEBSupabase.isConfigured()) {
+            try {
+                var cloudRes = await BTEBSupabase.fetchStudentByRoll(roll);
+                if (cloudRes && cloudRes.student) {
+                    student = cloudRes.student;
+                }
+            } catch (cloudErr) {
+                console.warn('[Student Search] Supabase lookup fallback:', cloudErr);
+            }
+        }
+
+        // 1. Unified Local Fallback (IndexedDB + LocalStorage + Memory) if not found in cloud or cloud unconfigured
+        if (!student && typeof BTEBStorage !== 'undefined') {
             if (BTEBStorage.getStudentAsync) {
                 student = await BTEBStorage.getStudentAsync(roll);
             } else {
@@ -262,13 +274,16 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
-        // 2. Check Pre-bundled Project Database & patch missing Institute/EIIN on stale local records
+        // 2. Check Pre-bundled Project Database & patch missing Institute/EIIN
         if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getStudent) {
             var rdbStudent = BTEBResultsDatabase.getStudent(roll);
             if (!student) {
                 student = rdbStudent;
             } else if (rdbStudent && (!(student.institute_code || student.instituteCode || student.ic) || !(student.institute_name || student.instituteName || student.in))) {
-                if (typeof BTEBStorage !== 'undefined' && BTEBStorage.mergeStudentRecords) {
+                if (student._fromSupabase) {
+                    student.institute_code = student.institute_code || rdbStudent.institute_code || rdbStudent.ic || null;
+                    student.institute_name = student.institute_name || rdbStudent.institute_name || rdbStudent.in || null;
+                } else if (typeof BTEBStorage !== 'undefined' && BTEBStorage.mergeStudentRecords) {
                     student = BTEBStorage.mergeStudentRecords(rdbStudent, student);
                 } else {
                     student.institute_code = student.institute_code || rdbStudent.institute_code || rdbStudent.ic || null;
@@ -408,8 +423,10 @@ document.addEventListener('DOMContentLoaded', function () {
         html += '      </div>';
         html += '    </div>';
         html += '    <div class="print-actions no-print">';
-        html += '      <span class="benchmark-badge" title="O(1) Hash Table Lookup Engine">';
-        html += '        ⚡ মাত্র ' + perfDisplay + 'ms এ প্রস্তুত (O(1) Engine)';
+        html += '      <span class="benchmark-badge" title="' + (data._fromSupabase ? 'Supabase Global Cloud Lookup' : 'O(1) Hash Table Lookup Engine') + '">';
+        html += data._fromSupabase
+            ? '        ☁️ ' + perfDisplay + 'ms (Supabase Live)'
+            : '        ⚡ মাত্র ' + perfDisplay + 'ms এ প্রস্তুত (O(1) Engine)';
         html += '      </span>';
         html += '      <button type="button" class="btn btn-outline" id="printResultBtn">🖨️ প্রিন্ট / সেভ PDF</button>';
         html += '      <button type="button" class="btn btn-secondary" id="newSearchBtn">🔄 নতুন সার্চ</button>';

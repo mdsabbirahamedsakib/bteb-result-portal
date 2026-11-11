@@ -737,6 +737,12 @@ const BTEBStorage = (function () {
             } catch (e) {}
         }
 
+        if (typeof BTEBSupabase !== 'undefined' && BTEBSupabase.isConfigured && BTEBSupabase.isConfigured()) {
+            try {
+                await BTEBSupabase.deleteBySheetId(sheetId);
+            } catch (e) {}
+        }
+
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('bteb-storage-updated', { detail: { action: 'delete' } }));
         }
@@ -770,6 +776,12 @@ const BTEBStorage = (function () {
                     tx.objectStore('students').clear();
                     tx.objectStore('rawTexts').clear();
                 });
+            } catch (e) {}
+        }
+
+        if (typeof BTEBSupabase !== 'undefined' && BTEBSupabase.isConfigured && BTEBSupabase.isConfigured()) {
+            try {
+                await BTEBSupabase.deleteAllResults();
             } catch (e) {}
         }
 
@@ -1176,6 +1188,18 @@ const BTEBStorage = (function () {
         };
     }
 
+    function getMergedStudentsForBatch(students) {
+        if (!Array.isArray(students)) return [];
+        var out = [];
+        for (var i = 0; i < students.length; i++) {
+            var st = students[i];
+            if (!st || !st.roll) continue;
+            var rKey = String(st.roll).trim();
+            out.push(cachedStudentsMap.get(rKey) || st);
+        }
+        return out;
+    }
+
     // ─── Individual Student Operations ───
 
     function addOrUpdateStudent(studentData) {
@@ -1187,17 +1211,79 @@ const BTEBStorage = (function () {
         var existingRec = cachedStudentsMap.get(roll) || compactDbExisting[roll] || null;
         var instCode = studentData.institute_code || studentData.instituteCode || (existingRec && (existingRec.institute_code || existingRec.instituteCode)) || null;
         var instName = studentData.institute_name || studentData.instituteName || (existingRec && (existingRec.institute_name || existingRec.instituteName)) || null;
+
+        var semesters = Object.assign({}, studentData.semesters || {});
+        var flatGpas = { gpa1: null, gpa2: null, gpa3: null, gpa4: null, gpa5: null, gpa6: null, gpa7: null, gpa8: null };
+        for (var s = 1; s <= 8; s++) {
+            var gKey = 'gpa' + s;
+            var rawVal = (studentData.gpas && studentData.gpas[gKey]) || studentData[gKey] || (semesters[s] && semesters[s].value) || null;
+            if (rawVal) {
+                var rawStr = String(rawVal).trim();
+                var low = rawStr.toLowerCase();
+                var isRef = low === 'ref' || low === 'referred';
+                var isAbs = low === 'abs' || low === 'absent';
+                var num = parseFloat(rawStr);
+                var valStr = isRef ? 'Referred' : (isAbs ? 'Absent' : (!isNaN(num) ? num.toFixed(2) : rawStr));
+                flatGpas[gKey] = valStr;
+                if (!semesters[s]) {
+                    semesters[s] = {
+                        semester: s,
+                        value: valStr,
+                        numericValue: (!isRef && !isAbs && !isNaN(num)) ? num : null,
+                        isReferred: isRef,
+                        isAbsent: isAbs,
+                        isPassed: (!isRef && !isAbs && !isNaN(num)),
+                        label: isRef ? 'রেফার্ড (Ref)' : valStr
+                    };
+                }
+            }
+        }
+
+        var referredSubjects = Array.isArray(studentData.referredSubjects) ? studentData.referredSubjects.slice() : [];
+        var referred = Array.isArray(studentData.referred) ? studentData.referred.slice() : [];
+        if (referredSubjects.length === 0 && typeof studentData.refSub === 'string' && studentData.refSub.trim()) {
+            studentData.refSub.split(/[,;\n]+/).forEach(function (item) {
+                var clean = item.trim();
+                if (!clean) return;
+                var m = clean.match(/^(\d+)(?:\(([TP,]+)\))?/i);
+                var code = m ? m[1] : clean;
+                var t = (m && m[2]) ? m[2].toUpperCase() : 'T';
+                referred.push(clean);
+                referredSubjects.push({
+                    code: code,
+                    type: t,
+                    raw: clean,
+                    typeLabel: t.indexOf('P') !== -1 && t.indexOf('T') !== -1 ? 'তত্ত্বীয় ও ব্যবহারিক (T,P)' : (t.indexOf('P') !== -1 ? 'ব্যবহারিক (Practical)' : 'তত্ত্বীয় (Theory)'),
+                    badgeClass: t.indexOf('P') !== -1 && t.indexOf('T') !== -1 ? 'badge-danger' : (t.indexOf('P') !== -1 ? 'badge-info' : 'badge-warning')
+                });
+            });
+        } else if (referred.length === 0 && referredSubjects.length > 0) {
+            referred = referredSubjects.map(function (sub) { return sub.raw || sub.code; });
+        }
+
         var student = {
             roll: roll,
             institute_code: instCode,
             institute_name: instName,
+            gpa1: flatGpas.gpa1,
+            gpa2: flatGpas.gpa2,
+            gpa3: flatGpas.gpa3,
+            gpa4: flatGpas.gpa4,
+            gpa5: flatGpas.gpa5,
+            gpa6: flatGpas.gpa6,
+            gpa7: flatGpas.gpa7,
+            gpa8: flatGpas.gpa8,
+            referred: referred,
             status: studentData.status || 'Passed',
             statusBangla: studentData.status === 'Referred' ? 'রেফার্ড' : (studentData.status === 'Dropped Out' ? 'ড্রপ আউট' : 'উত্তীর্ণ'),
             statusType: studentData.status === 'Referred' ? 'warning' : (studentData.status === 'Dropped Out' ? 'danger' : 'success'),
-            semesters: studentData.semesters || {},
-            referredSubjects: studentData.referredSubjects || [],
+            semesters: semesters,
+            referredSubjects: referredSubjects,
             latestSemester: defSem,
+            regulation: studentData.regulation || (existingRec && existingRec.regulation) || '2022',
             sheetId: 'custom_individual',
+            source: 'pasted',
+            sourcePriority: 5,
             updatedAt: new Date().toISOString()
         };
 
@@ -1220,7 +1306,12 @@ const BTEBStorage = (function () {
             BTEBParser.setStudent(student);
         }
 
-        return { success: true, student: student };
+        var cloudPromise = null;
+        if (typeof BTEBSupabase !== 'undefined' && BTEBSupabase.isConfigured && BTEBSupabase.isConfigured()) {
+            cloudPromise = BTEBSupabase.upsertStudent(student).catch(function () { return null; });
+        }
+
+        return { success: true, student: student, cloudPromise: cloudPromise };
     }
 
     function deleteStudent(roll) {
@@ -1240,7 +1331,11 @@ const BTEBStorage = (function () {
                 tx.objectStore('students').delete(cleanRoll);
             } catch (e) {}
         });
-        return { success: true };
+        var cloudPromise = null;
+        if (typeof BTEBSupabase !== 'undefined' && BTEBSupabase.isConfigured && BTEBSupabase.isConfigured()) {
+            cloudPromise = BTEBSupabase.deleteStudentByRoll(cleanRoll).catch(function () { return null; });
+        }
+        return { success: true, cloudPromise: cloudPromise };
     }
 
     function findStudentInSheets(roll) {
@@ -1523,6 +1618,7 @@ const BTEBStorage = (function () {
         getStudentAsync: getStudentAsync,
         getAllStudentsAsync: getAllStudentsAsync,
         getDatabaseHealthAsync: getDatabaseHealthAsync,
+        getMergedStudentsForBatch: getMergedStudentsForBatch,
         getTotalStats: getTotalStats,
         exportDatabaseAsJSON: exportDatabaseAsJSON,
         exportResultsDatabaseJs: exportResultsDatabaseJs,

@@ -594,7 +594,36 @@ const BTEBLang = (function () {
         '💾 Global Cloud Sync (GitHub Pages Ready) মোড সক্রিয় করা হয়েছে!': '💾 Global Cloud Sync (GitHub Pages Ready) mode enabled!',
         '📴 অফলাইন IndexedDB ব্যাকআপ': '📴 Offline IndexedDB Backup',
         'ব্যাকএন্ড সার্ভারের সাথে সংযোগ করা যায়নি (Static মোড দেখানো হচ্ছে)।': 'Unable to connect to backend server (showing Static mode).',
-        'ক্লাউড সার্ভারে সংযোগ করা যায়নি — অফলাইন IndexedDB ব্যাকআপ দেখানো হচ্ছে।': 'Unable to reach cloud server — showing offline IndexedDB backup.'
+        'ক্লাউড সার্ভারে সংযোগ করা যায়নি — অফলাইন IndexedDB ব্যাকআপ দেখানো হচ্ছে।': 'Unable to reach cloud server — showing offline IndexedDB backup.',
+        '☁️ Supabase ক্লাউড ডেটাবেস ও মাল্টি-ডিভাইস সিঙ্ক (Permanent Global DB)': '☁️ Supabase Cloud Database & Multi-Device Sync (Permanent Global DB)',
+        '⚪ কনফিগার করা হয়নি (লোকাল মোড)': '⚪ Not Configured (Local Mode)',
+        '🟡 কনফিগারড (যাচাই অপেক্ষমাণ)': '🟡 Configured (Pending Verification)',
+        '🔴 কানেকশন ত্রুটি': '🔴 Connection Error',
+        'টেবিল: bteb_results': 'Table: bteb_results',
+        'এখানে আপনার Supabase Project URL ও Anon Key সেট করলে আপলোড করা প্রতিটি BTEB রেজাল্ট PDF-এর রোল, সেমিস্টারভিত্তিক জিপিএ (gpa1 থেকে gpa5) এবং রেফার্ড বিষয় স্বয়ংক্রিয়ভাবে ব্যাচ আকারে bteb_results টেবিলে সেভ হবে ও যেকোনো ফোন বা ল্যাপটপের স্টুডেন্ট পেজ থেকে দেখা যাবে। সব ডিভাইসে অটো-কানেক্টের জন্য ডাউনলোড করা supabase_config.js ফাইলটি js/ ফোল্ডারে রেখে GitHub-এ পুশ করুন।': 'Set your Supabase Project URL and Anon Key here to automatically batch-save all parsed BTEB PDF results (roll, semester GPAs gpa1-gpa5, and referred subjects) into bteb_results for instant cross-device lookup. To enable auto-connect on all devices, replace js/supabase_config.js with the downloaded config file and push to GitHub.',
+        'এই প্রজেক্টটি Supabase ক্লাউড ডেটাবেস এবং ব্রাউজারের IndexedDB / LocalStorage সাপোর্ট করে। তাই যেকোনো ফ্রি বা পেইড ওয়েব হোস্টিংয়ে এটি তাৎক্ষণিক চলবে:': 'This project supports Supabase Cloud Database along with browser IndexedDB / LocalStorage, so it runs immediately on any free or paid web hosting:',
+        '🔌 সেভ ও কানেকশন যাচাই': '🔌 Save & Test Connection',
+        '☁️ লোকাল সব রেজাল্ট Supabase-এ সিঙ্ক করুন': '☁️ Sync All Local Results to Supabase',
+        '📥 supabase_config.js ডাউনলোড': '📥 Download supabase_config.js',
+        '🗄️ SQL স্কিমা দেখুন / কপি': '🗄️ View / Copy SQL Schema',
+        '☁️ Supabase ক্লাউডে ব্যাচ সিঙ্ক চলছে...': '☁️ Batch syncing to Supabase Cloud...',
+        '✅ Supabase ক্লাউড সিঙ্ক সম্পন্ন!': '✅ Supabase Cloud Sync Complete!',
+        '❌ Supabase সিঙ্ক ব্যর্থ হয়েছে': '❌ Supabase Sync Failed',
+        'ব্যাচ সাইজ: ৫০০': 'Batch size: 500',
+        '📋 Supabase SQL Editor-এ নিচের কোডটি একবার Run করুন (database/supabase_schema.sql):': '📋 Run the SQL below once inside Supabase SQL Editor (database/supabase_schema.sql):',
+        '📋 SQL কপি করুন': '📋 Copy SQL',
+        '⚠️ প্রথমে Supabase Project URL ও Anon Key সেভ করুন!': '⚠️ Please save Supabase Project URL and Anon Key first!',
+        '⚠️ Supabase Project URL এবং Anon Key উভয়ই দিন!': '⚠️ Please enter both Supabase Project URL and Anon Key!',
+        'ℹ️ Supabase-এ পাঠানোর মতো কোনো লোকাল রেজাল্ট পাওয়া যায়নি।': 'ℹ️ No local results found to sync to Supabase.',
+        '📥 supabase_config.js ডাউনলোড সম্পন্ন! এটি js/ ফোল্ডারে রিপ্লেস করে GitHub-এ পুশ করুন।': '📥 Downloaded supabase_config.js! Replace js/supabase_config.js and push to GitHub.',
+        '📋 Supabase SQL স্কিমা ক্লিপবোর্ডে কপি হয়েছে!': '📋 Supabase SQL schema copied to clipboard!',
+        'ℹ️ SQL বক্স থেকে টেক্সট সিলেক্ট করে কপি করুন।': 'ℹ️ Please select and copy the text from the SQL box.',
+        '☁️ Supabase ক্লাউড ডেটাবেস (Live)': '☁️ Supabase Cloud Database (Live)',
+        '☁️ Supabase ক্লাউড ডেটাবেসে ব্যাচ সিঙ্ক চলছে...': '☁️ Batch syncing to Supabase Cloud Database...',
+        '✅ সকল PDF পার্স, IndexedDB ও Supabase সিঙ্ক সম্পন্ন!': '✅ All PDFs Parsed, Indexed & Synced to Supabase!',
+        '✅ IndexedDB ও Supabase ডেটাবেসে সংরক্ষিত!': '✅ Saved to IndexedDB & Supabase Database!',
+        'URL ও Anon Key সেট করা হয়নি': 'URL and Anon Key are not configured',
+        'টেবিল অনুপস্থিত': 'Table not found'
     };
 
     const BN_DIGITS = { '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4', '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9' };
@@ -751,6 +780,34 @@ const BTEBLang = (function () {
         [/^✅\s*সফলভাবে\s+ইমপোর্ট\s+হয়েছে!\s*([০-৯\d,]+)টি\s+রোল,\s*([০-৯\d,]+)টি\s+শীট\s+ও\s*([০-৯\d,]+)টি\s+মেটেরিয়াল\s+লোড\s+করা\s+হয়েছে।$/, function (_, st, sh, m) {
             return '✅ Imported successfully! Loaded ' + toAsciiDigits(st) + ' roll(s), ' + toAsciiDigits(sh) + ' sheet(s), and ' + toAsciiDigits(m) + ' material(s).';
         }],
+        [/^🟢\s*Supabase\s+সংযুক্ত\s*\(([^)]+)\)$/, function (_, lat) { return '🟢 Supabase Connected (' + lat + ')'; }],
+        [/^☁️\s*ক্লাউড\s+রেকর্ড:\s*([০-৯\d,]+)টি\s*\(([^)]+)\)$/, function (_, n, tbl) { return '☁️ Cloud Records: ' + toAsciiDigits(n) + ' (' + tbl + ')'; }],
+        [/^ব্যাচ:\s*([০-৯\d,]+)\s*\/\s*([০-৯\d,]+)$/, function (_, b, tb) { return 'Batch: ' + toAsciiDigits(b) + ' / ' + toAsciiDigits(tb); }],
+        [/^ব্যাচ\s+([০-৯\d,]+)\s*\/\s*([০-৯\d,]+)\s*\|\s*টেবিল:\s*(.+)$/, function (_, b, tb, tbl) { return 'Batch ' + toAsciiDigits(b) + ' / ' + toAsciiDigits(tb) + ' | Table: ' + tbl; }],
+        [/^✅\s*সফলভাবে\s+সেভ\s+হয়েছে!\s*মোট\s+([০-৯\d,]+)টি\s+রোল\s+ডেটাবেসে\s+সেভ\s+করা\s+হয়েছে।\s*\(উত্তীর্ণ:\s*([০-৯\d,]+),\s*রেফার্ড:\s*([০-৯\d,]+),\s*ড্রপ:\s*([০-৯\d,]+)\)\s*\(Supabase-এ\s+সিঙ্ক\s+সম্পন্ন\)$/, function (_, t, p, r, d) {
+            return '✅ Saved successfully! ' + toAsciiDigits(t) + ' rolls stored (Passed: ' + toAsciiDigits(p) + ', Referred: ' + toAsciiDigits(r) + ', Dropped: ' + toAsciiDigits(d) + ') (Synced to Supabase)';
+        }],
+        [/^✅\s*মোট\s+([০-৯\d,]+)\s+জন\s+শিক্ষার্থীর\s+রেজাল্ট\s+Supabase-এ\s+সিঙ্ক\s+হয়েছে\s*\(([^)]+)\)!$/, function (_, n, ms) {
+            return '✅ Synced ' + toAsciiDigits(n) + ' student result(s) to Supabase (' + ms + ')!';
+        }],
+        [/^✅\s*Supabase\s+কানেকশন\s+সফল!\s*টেবিলে\s+([০-৯\d,]+)টি\s+রেকর্ড\s+রয়েছে\s*\(([^)]+)\)।$/, function (_, n, ms) {
+            return '✅ Supabase connected! ' + toAsciiDigits(n) + ' record(s) in table (' + ms + ').';
+        }],
+        [/^❌\s*Supabase\s+(সিঙ্ক|কানেকশন)\s+(?:ত্রুটি|ব্যর্থ):\s*(.+)$/, function (_, kind, err) {
+            return '❌ Supabase ' + (kind === 'সিঙ্ক' ? 'Sync' : 'Connection') + ' Error: ' + translateSubTerm(err);
+        }],
+        [/^☁️\s*Supabase-এ\s+ব্যাচ\s+আপলোড\s+চলছে\s+—\s+(.+)$/, function (_, fn) { return '☁️ Batch uploading to Supabase — ' + fn; }],
+        [/^☁️\s*Supabase\s+সিঙ্ক\s*\(([^)]+)\):\s*([০-৯\d,]+)\s*\/\s*([০-৯\d,]+)\s+রোল\s*\((\d+%)\)$/, function (_, fn, u, t, p) {
+            return '☁️ Supabase Sync (' + fn + '): ' + toAsciiDigits(u) + ' / ' + toAsciiDigits(t) + ' rolls (' + p + ')';
+        }],
+        [/^✅\s*সম্পন্ন\s*\+\s*☁️\s*Supabase\s*\(([০-৯\d,]+)\s+রোল\)$/, function (_, n) { return '✅ Done + ☁️ Supabase (' + toAsciiDigits(n) + ' rolls)'; }],
+        [/^🎉\s*সর্বমোট\s+([০-৯\d,]+)টি\s+ফাইল\s*\(([০-৯\d,]+)\s+পৃষ্ঠা\)\s+স্ক্যান\s+ও\s+([০-৯\d,]+)টি\s+রোল\s+Supabase\s+ক্লাউড\s+ডেটাবেসে\s+সেভ\s+হয়েছে!$/, function (_, f, p, r) {
+            return '🎉 Scanned ' + toAsciiDigits(f) + ' file(s) (' + toAsciiDigits(p) + ' pages) and saved ' + toAsciiDigits(r) + ' roll(s) to Supabase Cloud Database!';
+        }],
+        [/^✅\s*অভিনন্দন!\s*([০-৯\d,]+)টি\s+পিডিএফ\s+থেকে\s+সর্বমোট\s+([০-৯\d,]+)\s+জন\s+শিক্ষার্থীর\s+রেজাল্ট\s*\(([০-৯\d,]+)টি\s+ক্লাউডে\)\s+Supabase\s+ও\s+লোকাল\s+ডেটাবেসে\s+সেভ\s+হয়েছে!$/, function (_, f, r, s) {
+            return '✅ Congratulations! Saved ' + toAsciiDigits(r) + ' student result(s) from ' + toAsciiDigits(f) + ' PDF(s) (' + toAsciiDigits(s) + ' synced to Supabase Cloud)!';
+        }],
+        [/^([০-৯\d,]+)\s*\/\s*([০-৯\d,]+)\s*রোল$/, function (_, u, t) { return toAsciiDigits(u) + ' / ' + toAsciiDigits(t) + ' rolls'; }],
         [/^([১-৮]+(?:ম|য়|য়|র্থ|ষ্ঠ))$/, function (_, sem) { return toOrdinalSem(sem); }],
         [/^[০-৯]+(?:[.,][০-৯]+)*%?$/, function (m) { return toAsciiDigits(m); }]
     ];
