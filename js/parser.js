@@ -109,9 +109,103 @@ const BTEBParser = (function () {
     }
 
     /**
+     * Parse BTEB Institute Header line: "EIIN - Institute Name, District"
+     * Example: "74042 - Chakria Polytechnic Institute, Cox's Bazar"
+     */
+    function parseInstituteHeader(line) {
+        if (!line) return null;
+        const trimmed = normalizeDigits(String(line)).replace(/\s+/g, ' ').trim();
+        const match = trimmed.match(/^(\d{5,6})\s*[-–—]\s*(.+)$/);
+        if (!match) return null;
+
+        const code = match[1].trim();
+        const name = match[2].trim();
+
+        // Guard against Format-4 student lines like "732320 - 3.52" or "600784 - 28542(T)"
+        if (!name || name.length < 3) return null;
+        if ((name.match(/[A-Za-z\u0980-\u09FF]/g) || []).length < 3) return null;
+        if (/^(?:[0-4](?:\.\d+)?|gpa\d*|ref(?:_sub)?|passed|referred|dropped(?:\s+out)?|drop|absent|abs|fail|withheld)(?:\s*[:=,;].*)?$/i.test(name)) return null;
+        if (/^\d{4,6}\s*[\(\{]/.test(name)) return null;
+
+        return {
+            institute_code: code,
+            institute_name: name
+        };
+    }
+
+    /**
+     * Build offset-indexed institute segments across multi-line raw text
+     */
+    function buildInstituteSegments(text, initialContext) {
+        let activeCode = initialContext && (initialContext.institute_code || initialContext.code || initialContext.instituteCode)
+            ? String(initialContext.institute_code || initialContext.code || initialContext.instituteCode).trim()
+            : null;
+        let activeName = initialContext && (initialContext.institute_name || initialContext.name || initialContext.instituteName)
+            ? String(initialContext.institute_name || initialContext.name || initialContext.instituteName).trim()
+            : null;
+
+        const segments = [{
+            startOffset: 0,
+            institute_code: activeCode,
+            institute_name: activeName
+        }];
+
+        let lineStart = 0;
+        const len = text.length;
+        while (lineStart <= len) {
+            let lineEnd = text.indexOf('\n', lineStart);
+            if (lineEnd === -1) lineEnd = len;
+
+            const lineStr = text.slice(lineStart, lineEnd);
+            const parsedHeader = parseInstituteHeader(lineStr);
+            if (parsedHeader) {
+                activeCode = parsedHeader.institute_code;
+                activeName = parsedHeader.institute_name;
+                segments.push({
+                    startOffset: lineStart,
+                    institute_code: activeCode,
+                    institute_name: activeName
+                });
+            }
+
+            if (lineEnd >= len) break;
+            lineStart = lineEnd + 1;
+        }
+
+        if (initialContext && typeof initialContext === 'object') {
+            initialContext.institute_code = activeCode;
+            initialContext.institute_name = activeName;
+            initialContext.code = activeCode;
+            initialContext.name = activeName;
+        }
+
+        return segments;
+    }
+
+    /**
+     * Binary search for active institute header preceding a character offset
+     */
+    function getInstituteAtOffset(segments, offset) {
+        if (!segments || segments.length === 0) return null;
+        let lo = 0;
+        let hi = segments.length - 1;
+        let ans = 0;
+        while (lo <= hi) {
+            const mid = (lo + hi) >> 1;
+            if (segments[mid].startOffset <= offset) {
+                ans = mid;
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        return segments[ans];
+    }
+
+    /**
      * Parse the inner body content of a student entry
      */
-    function parseStudentBody(roll, rawBody, defaultSemester) {
+    function parseStudentBody(roll, rawBody, defaultSemester, instituteInfo) {
         const body = (rawBody || '').trim();
         const defSem = parseInt(defaultSemester, 10) || 5;
 
@@ -298,9 +392,17 @@ const BTEBParser = (function () {
             }
         }
         const referredList = referredSubjects.map(s => s.raw || s.code);
+        const instCode = instituteInfo && (instituteInfo.institute_code || instituteInfo.code || instituteInfo.instituteCode)
+            ? String(instituteInfo.institute_code || instituteInfo.code || instituteInfo.instituteCode).trim()
+            : null;
+        const instName = instituteInfo && (instituteInfo.institute_name || instituteInfo.name || instituteInfo.instituteName)
+            ? String(instituteInfo.institute_name || instituteInfo.name || instituteInfo.instituteName).trim()
+            : null;
 
         return {
             roll: String(roll).trim(),
+            institute_code: instCode,
+            institute_name: instName,
             gpa8: gpaObj[8],
             gpa7: gpaObj[7],
             gpa6: gpaObj[6],
@@ -335,12 +437,14 @@ const BTEBParser = (function () {
 
         const cleaned = cleanRawPdfText(rawText);
         const masked = maskSubjectParentheses(cleaned);
+        const segments = buildInstituteSegments(cleaned);
 
         // Pattern 1: Bracketed
         const p1 = new RegExp('(?:^|[^\\d])(' + cleanRoll + ')\\s*[\\(\\{\\[]([\\s\\S]*?)[\\)\\}\\]]', 'm');
         let match = p1.exec(masked);
         if (match) {
-            const student = parseStudentBody(match[1], unmaskSubjectParentheses(match[2]), defaultSemester);
+            const inst = getInstituteAtOffset(segments, match.index);
+            const student = parseStudentBody(match[1], unmaskSubjectParentheses(match[2]), defaultSemester, inst);
             rollIndexMap.set(match[1], student);
             return student;
         }
@@ -349,7 +453,8 @@ const BTEBParser = (function () {
         const p2 = new RegExp('(?:^|[^\\d])(' + cleanRoll + ')\\s*[:=-]\\s*([^\\r\\n,;]+)', 'm');
         match = p2.exec(masked);
         if (match) {
-            const student = parseStudentBody(match[1], unmaskSubjectParentheses(match[2]), defaultSemester);
+            const inst = getInstituteAtOffset(segments, match.index);
+            const student = parseStudentBody(match[1], unmaskSubjectParentheses(match[2]), defaultSemester, inst);
             rollIndexMap.set(match[1], student);
             return student;
         }
@@ -358,7 +463,8 @@ const BTEBParser = (function () {
         const p3 = new RegExp('(?:^|[^\\d])(' + cleanRoll + ')\\s{1,8}([2-4]\\.\\d{1,2}|(?:\\d{4,6}[^\\r\\n]+))', 'm');
         match = p3.exec(masked);
         if (match) {
-            const student = parseStudentBody(match[1], unmaskSubjectParentheses(match[2]), defaultSemester);
+            const inst = getInstituteAtOffset(segments, match.index);
+            const student = parseStudentBody(match[1], unmaskSubjectParentheses(match[2]), defaultSemester, inst);
             rollIndexMap.set(match[1], student);
             return student;
         }
@@ -369,16 +475,17 @@ const BTEBParser = (function () {
     /**
      * Parse ALL students found in raw text into an array and index map
      */
-    function parseAll(rawText, defaultSemester) {
+    function parseAll(rawText, defaultSemester, instituteContext) {
         if (!rawText) return [];
         const cleaned = cleanRawPdfText(rawText);
         const masked = maskSubjectParentheses(cleaned);
         const defSem = parseInt(defaultSemester, 10) || 5;
+        const segments = buildInstituteSegments(cleaned, instituteContext);
 
         const results = [];
         const seenRolls = new Set();
 
-        function addCandidate(roll, body) {
+        function addCandidate(roll, body, matchIndex) {
             if (!roll || seenRolls.has(roll)) return;
             // Ignore institute 5-digit headers like "64024 - Rangpur Polytechnic"
             const hasGpa = /\b[1-4]\.\d{1,2}\b/.test(body) || /gpa/i.test(body);
@@ -387,7 +494,10 @@ const BTEBParser = (function () {
 
             if (hasGpa || hasSubjects || hasStatus) {
                 seenRolls.add(roll);
-                const student = parseStudentBody(roll, body, defSem);
+                const instInfo = (typeof matchIndex === 'number')
+                    ? getInstituteAtOffset(segments, matchIndex)
+                    : segments[segments.length - 1];
+                const student = parseStudentBody(roll, body, defSem, instInfo);
                 results.push(student);
                 rollIndexMap.set(roll, student);
             }
@@ -400,49 +510,49 @@ const BTEBParser = (function () {
         while ((match = patternExactGpa5.exec(masked)) !== null) {
             const r = match[1];
             const body = 'gpa5: ' + match[2] + ', gpa4: ' + match[3] + ', gpa3: ' + match[4] + ', gpa2: ' + match[5] + ', gpa1: ' + match[6];
-            addCandidate(r, body);
+            addCandidate(r, body, match.index);
         }
 
         // Pattern 0B: Flexible gpa sequences inside parentheses or braces
         const patternGpaSeq = /\b(\d{5,8})\b\s*[\(\{\[]([^\)\}\]]*gpa\d+[^\)\}\]]*)[\)\}\]]/gi;
         while ((match = patternGpaSeq.exec(masked)) !== null) {
-            addCandidate(match[1], unmaskSubjectParentheses(match[2]));
+            addCandidate(match[1], unmaskSubjectParentheses(match[2]), match.index);
         }
 
         // Pattern 0C: Referred or Promoted with ref_sub:
         const patternRefSub = /\b(\d{5,8})\b\s*[\(\{\[]\s*(?:ref_sub\s*[:=]\s*)?([^\)\}\]]*(?:«[TPtp\s,]+»|\d{4,6})[^\)\}\]]*)[\)\}\]]/gi;
         while ((match = patternRefSub.exec(masked)) !== null) {
-            addCandidate(match[1], unmaskSubjectParentheses(match[2]));
+            addCandidate(match[1], unmaskSubjectParentheses(match[2]), match.index);
         }
 
         // Pattern 1: Standard Bracketed: \b(ROLL)\b \s* [({[] (BODY) [)}]
         const pattern1 = /\b(\d{5,8})\b\s*[\(\{\[]([^\)\}\]]+)[\)\}\]]/g;
         while ((match = pattern1.exec(masked)) !== null) {
-            addCandidate(match[1], unmaskSubjectParentheses(match[2]));
+            addCandidate(match[1], unmaskSubjectParentheses(match[2]), match.index);
         }
 
         // Pattern 2: Colon / Dash / Equal: \b(ROLL)\b \s* [:=] \s* (BODY)
         const pattern2 = /\b(\d{5,8})\b\s*[:=-]\s*([2-4]\.\d{1,2}|(?:\d{4,6}(?:«[TPtp\s,]+»)?(?:[,\s]+)?)+)/g;
         while ((match = pattern2.exec(masked)) !== null) {
-            addCandidate(match[1], unmaskSubjectParentheses(match[2]));
+            addCandidate(match[1], unmaskSubjectParentheses(match[2]), match.index);
         }
 
         // Pattern 3: Tabular / Space / Newline layout: \b(ROLL)\b \s+ (GPA)
         const pattern3 = /\b(\d{5,8})\b\s+([2-4]\.\d{1,2})\b/g;
         while ((match = pattern3.exec(masked)) !== null) {
-            addCandidate(match[1], match[2]);
+            addCandidate(match[1], match[2], match.index);
         }
 
         // Pattern 4: Tabular referred layout: \b(ROLL)\b \s+ (SUBJECTS)
         const pattern4 = /\b(\d{5,8})\b\s+((?:(?:\d{4,6}(?:«[TPtp\s,]+»)?)[,\s]*)+)/g;
         while ((match = pattern4.exec(masked)) !== null) {
-            addCandidate(match[1], unmaskSubjectParentheses(match[2]));
+            addCandidate(match[1], unmaskSubjectParentheses(match[2]), match.index);
         }
 
         // Pattern 5: Key-Value / Line-by-Line: Roll: 123456 ... GPA: 3.50
         const pattern5 = /(?:Roll|রোল)\s*(?:No|নম্বর)?\s*[:=]?\s*(\d{5,8})[\s\S]{1,60}?(?:GPA|জিপিএ|Result|CGPA)\s*[:=]?\s*([1-4]\.\d{1,2}|[^\r\n]+)/gi;
         while ((match = pattern5.exec(masked)) !== null) {
-            addCandidate(match[1], unmaskSubjectParentheses(match[2]));
+            addCandidate(match[1], unmaskSubjectParentheses(match[2]), match.index);
         }
 
         return results;
@@ -611,7 +721,9 @@ const BTEBParser = (function () {
                     optMap[s.roll] = {
                         s: s.status === 'Passed' ? 'P' : (s.status === 'Referred' ? 'R' : 'D'),
                         g: s.semesters && s.semesters[defSem] ? s.semesters[defSem].value : null,
-                        r: (s.referredSubjects || []).map(function (sub) { return sub.raw || sub.code; })
+                        r: (s.referredSubjects || []).map(function (sub) { return sub.raw || sub.code; }),
+                        ic: s.institute_code || null,
+                        in: s.institute_name || null
                     };
                 }
 
@@ -675,6 +787,7 @@ const BTEBParser = (function () {
         cleanRollNumber: cleanRollNumber,
         findRoll: findRoll,
         parseAll: parseAll,
+        parseInstituteHeader: parseInstituteHeader,
         parseStudentBody: parseStudentBody,
         calculateCGPA: calculateCGPA,
         parseSubjectCodes: parseSubjectCodes,

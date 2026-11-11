@@ -119,8 +119,13 @@ const BTEBResultsDatabase = (function () {
             ? dominant.referred 
             : (dominant.referredSubjects || []).map(function(sub){ return sub.raw || sub.code; });
 
+        var instCode = dominant.institute_code || dominant.instituteCode || subordinate.institute_code || subordinate.instituteCode || null;
+        var instName = dominant.institute_name || dominant.instituteName || subordinate.institute_name || subordinate.instituteName || null;
+
         var merged = {
             roll: dominant.roll,
+            institute_code: instCode,
+            institute_name: instName,
             gpa8: gpaObj[8],
             gpa7: gpaObj[7],
             gpa6: gpaObj[6],

@@ -1433,6 +1433,7 @@ async function extractAndParsePdfStream(file, defaultSemester, onProgress) {
 
     var allStudentsMap = new Map();
     var sampleRawText = '';
+    var activeInstituteContext = { institute_code: null, institute_name: null };
 
     for (var pageNum = 1; pageNum <= totalPages; pageNum++) {
         var page = await pdfDoc.getPage(pageNum);
@@ -1454,12 +1455,18 @@ async function extractAndParsePdfStream(file, defaultSemester, onProgress) {
         // CRITICAL: Cleanup page canvas representation immediately to avoid browser out-of-memory!
         page.cleanup();
 
+        // Snapshot start-of-page active institute so multi-line page parse starts with the same state
+        var pageStartInstitute = {
+            institute_code: activeInstituteContext.institute_code,
+            institute_name: activeInstituteContext.institute_name
+        };
+
         // 1. Line-by-line parsing
         var lines = pageText.split('\n');
         for (var ln = 0; ln < lines.length; ln++) {
             var lineStr = lines[ln].trim();
             if (lineStr.length >= 6) {
-                var lineStudents = BTEBParser.parseAll(lineStr, defaultSemester);
+                var lineStudents = BTEBParser.parseAll(lineStr, defaultSemester, activeInstituteContext);
                 for (var ls = 0; ls < lineStudents.length; ls++) {
                     var lst = lineStudents[ls];
                     lst.source = 'pdf';
@@ -1472,7 +1479,7 @@ async function extractAndParsePdfStream(file, defaultSemester, onProgress) {
         }
 
         // 2. Also run page-level parse to catch multi-line entries
-        var pageStudents = BTEBParser.parseAll(pageText, defaultSemester);
+        var pageStudents = BTEBParser.parseAll(pageText, defaultSemester, pageStartInstitute);
         for (var s = 0; s < pageStudents.length; s++) {
             var st = pageStudents[s];
             st.source = 'pdf';
@@ -1483,6 +1490,10 @@ async function extractAndParsePdfStream(file, defaultSemester, onProgress) {
                 allStudentsMap.set(st.roll, st);
             }
         }
+
+        // Sync end-of-page institute state for the next page
+        activeInstituteContext.institute_code = pageStartInstitute.institute_code;
+        activeInstituteContext.institute_name = pageStartInstitute.institute_name;
 
         if (pageNum <= 50) {
             sampleRawText += (pageNum > 1 ? '\n\n' : '') + pageText;
@@ -1721,7 +1732,7 @@ window.handlePdfBatch = async function(fileList) {
 
     if (sampleList && lastSavedStudents.length > 0) {
         var sampleHtml = '<table style="width:100%;border-collapse:collapse;text-align:left;">';
-        sampleHtml += '<tr style="border-bottom:1px solid var(--border-color);background:rgba(0,0,0,0.03);font-weight:600;"><th style="padding:6px 10px;">রোল নং</th><th style="padding:6px 10px;">ফলাফল</th><th style="padding:6px 10px;">জিপিএ / বিষয়</th></tr>';
+        sampleHtml += '<tr style="border-bottom:1px solid var(--border-color);background:rgba(0,0,0,0.03);font-weight:600;"><th style="padding:6px 10px;">রোল নং</th><th style="padding:6px 10px;">ফলাফল</th><th style="padding:6px 10px;">জিপিএ / বিষয়</th><th style="padding:6px 10px;">ইনস্টিটিউট (EIIN)</th></tr>';
 
         var sampleCount = Math.min(15, lastSavedStudents.length);
         for (var m = 0; m < sampleCount; m++) {
@@ -1738,10 +1749,15 @@ window.handlePdfBatch = async function(fileList) {
                 descText = 'সেমিস্টার ড্রপ';
             }
 
+            var recInstName = sRec.institute_name || sRec.instituteName || '';
+            var recInstCode = sRec.institute_code || sRec.instituteCode || '';
+            var recInstDisplay = recInstName ? (recInstName + (recInstCode ? ' (EIIN: ' + recInstCode + ')' : '')) : (recInstCode ? 'EIIN: ' + recInstCode : '—');
+
             sampleHtml += '<tr style="border-bottom:1px solid var(--border-color);">';
             sampleHtml += '<td style="padding:6px 10px;font-family:monospace;font-weight:600;">' + sRec.roll + '</td>';
             sampleHtml += '<td style="padding:6px 10px;"><span style="background:' + bgBadge + ';color:' + clrBadge + ';padding:2px 8px;border-radius:10px;font-size:12px;font-weight:500;">' + (sRec.statusBangla || sRec.status) + '</span></td>';
             sampleHtml += '<td style="padding:6px 10px;color:var(--text-muted);">' + descText + '</td>';
+            sampleHtml += '<td style="padding:6px 10px;color:var(--text-muted);font-size:12px;">' + recInstDisplay + '</td>';
             sampleHtml += '</tr>';
         }
         sampleHtml += '</table>';
@@ -1776,7 +1792,11 @@ window.handlePdfBatch = async function(fileList) {
                     gpaInfo = ' | রেফার্ড বিষয়: ' + (found.referredSubjects || found.referred || []).map(function(s){ return s.raw || s.code || s; }).join(', ');
                 }
 
-                testOut.innerHTML = '<strong>✓ রেজাল্ট পাওয়া গেছে!</strong> রোল: <strong>' + found.roll + '</strong> | স্ট্যাটাস: <strong>' + (found.statusBangla || found.status) + '</strong>' + gpaInfo + ' <br><a href="index.html" target="_blank" style="color:' + statusColor + ';text-decoration:underline;margin-top:4px;display:inline-block;">👉 স্টুডেন্ট পেজে সম্পূর্ণ মার্কশিট কার্ড দেখুন ➔</a>';
+                var fInstName = found.institute_name || found.instituteName || '';
+                var fInstCode = found.institute_code || found.instituteCode || '';
+                var instInfoText = fInstName ? (' | ইনস্টিটিউট: <strong>' + fInstName + '</strong>' + (fInstCode ? ' (EIIN: ' + fInstCode + ')' : '')) : '';
+
+                testOut.innerHTML = '<strong>✓ রেজাল্ট পাওয়া গেছে!</strong> রোল: <strong>' + found.roll + '</strong> | স্ট্যাটাস: <strong>' + (found.statusBangla || found.status) + '</strong>' + gpaInfo + instInfoText + ' <br><a href="index.html" target="_blank" style="color:' + statusColor + ';text-decoration:underline;margin-top:4px;display:inline-block;">👉 স্টুডেন্ট পেজে সম্পূর্ণ মার্কশিট কার্ড দেখুন ➔</a>';
             } else {
                 testOut.style.background = 'rgba(239,68,68,0.1)';
                 testOut.style.border = '1px solid #ef4444';

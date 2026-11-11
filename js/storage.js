@@ -131,8 +131,13 @@ const BTEBStorage = (function () {
             ? dominant.referred 
             : (dominant.referredSubjects || []).map(function(sub){ return sub.raw || sub.code; });
 
+        var instCode = dominant.institute_code || dominant.instituteCode || subordinate.institute_code || subordinate.instituteCode || null;
+        var instName = dominant.institute_name || dominant.instituteName || subordinate.institute_name || subordinate.instituteName || null;
+
         return {
             roll: dominant.roll,
+            institute_code: instCode,
+            institute_name: instName,
             gpa8: gpaObj[8],
             gpa7: gpaObj[7],
             gpa6: gpaObj[6],
@@ -663,8 +668,14 @@ const BTEBStorage = (function () {
         if (!roll) return { success: false, message: 'রোল নম্বর প্রদান করুন।' };
 
         var defSem = parseInt(studentData.semester, 10) || 5;
+        var compactDbExisting = _read(KEYS.STUDENTS_COMPACT) || {};
+        var existingRec = cachedStudentsMap.get(roll) || compactDbExisting[roll] || null;
+        var instCode = studentData.institute_code || studentData.instituteCode || (existingRec && (existingRec.institute_code || existingRec.instituteCode)) || null;
+        var instName = studentData.institute_name || studentData.instituteName || (existingRec && (existingRec.institute_name || existingRec.instituteName)) || null;
         var student = {
             roll: roll,
+            institute_code: instCode,
+            institute_name: instName,
             status: studentData.status || 'Passed',
             statusBangla: studentData.status === 'Referred' ? 'রেফার্ড' : (studentData.status === 'Dropped Out' ? 'ড্রপ আউট' : 'উত্তীর্ণ'),
             statusType: studentData.status === 'Referred' ? 'warning' : (studentData.status === 'Dropped Out' ? 'danger' : 'success'),

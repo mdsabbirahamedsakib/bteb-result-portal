@@ -322,13 +322,22 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
-        var studentMeta = (typeof BTEBData !== 'undefined' && BTEBData.getStudentMeta) ? BTEBData.getStudentMeta(data.roll) : {
+        function escHtml(str) {
+            return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        var studentMeta = (typeof BTEBData !== 'undefined' && BTEBData.getStudentMeta) ? BTEBData.getStudentMeta(data.roll, data) : {
             name: 'শিক্ষার্থী (রোল: ' + data.roll + ')',
-            institute: 'বাংলাদেশ কারিগরি শিক্ষা বোর্ড আওতাধীন পলিটেকনিক ইনস্টিটিউট',
+            institute: (data.institute_name || data.instituteName || 'বাংলাদেশ কারিগরি শিক্ষা বোর্ড আওতাধীন পলিটেকনিক ইনস্টিটিউট'),
+            institute_code: (data.institute_code || data.instituteCode || ''),
+            institute_name: (data.institute_name || data.instituteName || ''),
             technology: 'ডিপ্লোমা ইন ইঞ্জিনিয়ারিং',
             session: 'বোর্ড পরীক্ষা সেশন',
             regulation: regulation || '২০২২'
         };
+
+        var instituteNameDisplay = data.institute_name || data.instituteName || studentMeta.institute_name || studentMeta.institute;
+        var instituteCodeDisplay = data.institute_code || data.instituteCode || studentMeta.institute_code || '';
 
         var cgpaData = null;
         try {
@@ -408,11 +417,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Student Info Grid
         html += '  <div class="student-info-grid">';
-        html += '    <div class="info-item"><span class="info-label">শিক্ষার্থীর রোল (Roll No):</span><strong class="info-val text-primary text-xl">' + data.roll + '</strong></div>';
-        html += '    <div class="info-item"><span class="info-label">শিক্ষার্থীর নাম (Student Name):</span><span class="info-val">' + studentMeta.name + '</span></div>';
-        html += '    <div class="info-item"><span class="info-label">ইনস্টিটিউট (Institute):</span><span class="info-val">' + studentMeta.institute + '</span></div>';
-        html += '    <div class="info-item"><span class="info-label">টেকনোলজি (Technology):</span><span class="info-val">' + studentMeta.technology + '</span></div>';
-        html += '    <div class="info-item"><span class="info-label">শিক্ষাবর্ষ / সেশন (Session):</span><span class="info-val">' + studentMeta.session + '</span></div>';
+        html += '    <div class="info-item"><span class="info-label">শিক্ষার্থীর রোল (Roll No):</span><strong class="info-val text-primary text-xl">' + escHtml(data.roll) + '</strong></div>';
+        html += '    <div class="info-item"><span class="info-label">শিক্ষার্থীর নাম (Student Name):</span><span class="info-val">' + escHtml(studentMeta.name) + '</span></div>';
+        html += '    <div class="info-item"><span class="info-label">ইনস্টিটিউট (Institute):</span><span class="info-val">' + escHtml(instituteNameDisplay) + '</span>' + (instituteCodeDisplay ? '<span class="text-sm text-muted" style="margin-top:3px;">EIIN / ইনস্টিটিউট কোড: <strong class="text-primary">' + escHtml(instituteCodeDisplay) + '</strong></span>' : '') + '</div>';
+        html += '    <div class="info-item"><span class="info-label">টেকনোলজি (Technology):</span><span class="info-val">' + escHtml(studentMeta.technology) + '</span></div>';
+        html += '    <div class="info-item"><span class="info-label">শিক্ষাবর্ষ / সেশন (Session):</span><span class="info-val">' + escHtml(studentMeta.session) + '</span></div>';
         html += '    <div class="info-item"><span class="info-label">সর্বশেষ সেমিস্টার (Latest Sem):</span><span class="info-val">' + (data.latestSemester ? semesterNamesBangla[data.latestSemester] : 'সেমিস্টার ড্রপ') + '</span></div>';
         html += '  </div>';
 

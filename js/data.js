@@ -39,13 +39,17 @@ const BTEBData = (function () {
         getSubjectName: function (code) {
             return SUBJECT_DIRECTORY[code] || 'কারিগরি বিষয় (' + code + ')';
         },
-        getStudentMeta: function (roll) {
+        getStudentMeta: function (roll, studentData) {
+            var instCode = studentData && (studentData.institute_code || studentData.instituteCode) ? (studentData.institute_code || studentData.instituteCode) : '';
+            var instName = studentData && (studentData.institute_name || studentData.instituteName) ? (studentData.institute_name || studentData.instituteName) : '';
             return {
                 name: 'শিক্ষার্থী (রোল: ' + roll + ')',
-                institute: 'বাংলাদেশ কারিগরি শিক্ষা বোর্ড আওতাধীন পলিটেকনিক ইনস্টিটিউট',
+                institute: instName || 'বাংলাদেশ কারিগরি শিক্ষা বোর্ড আওতাধীন পলিটেকনিক ইনস্টিটিউট',
+                institute_code: instCode,
+                institute_name: instName,
                 technology: 'ডিপ্লোমা ইন ইঞ্জিনিয়ারিং',
                 session: 'বোর্ড পরীক্ষা সেশন',
-                regulation: '২০২২/২০১৬'
+                regulation: (studentData && studentData.regulation) ? studentData.regulation : '২০২২/২০১৬'
             };
         }
     };
