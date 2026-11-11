@@ -302,13 +302,230 @@ const BTEBStorage = (function () {
     /**
      * Load all saved students from LocalStorage & IndexedDB into memory on boot
      */
+    let activeImportPromise = null;
+
+    function _syncInstituteAliases(st) {
+        if (!st || typeof st !== 'object') return st;
+        var code = st.institute_code || st.instituteCode || st.ic || null;
+        var name = st.institute_name || st.instituteName || st.in || null;
+        if (code && !st.institute_code) st.institute_code = String(code).trim();
+        if (name && !st.institute_name) st.institute_name = String(name).trim();
+        return st;
+    }
+
+    function _expandImportedRecord(rollKey, rawRec) {
+        if (!rawRec || typeof rawRec !== 'object') return null;
+        var roll = String(rawRec.roll || rollKey || '').trim();
+        if (!roll) return null;
+
+        // Already full student object
+        if (rawRec.roll && (rawRec.semesters || rawRec.status)) {
+            _syncInstituteAliases(rawRec);
+            return rawRec;
+        }
+
+        // Compact format from exportOptimizedJSON or compact DB export (s, g, g1..g8, r, ic, in)
+        var statusCode = rawRec.s || rawRec.st || '';
+        var status = rawRec.status || (statusCode === 'P' ? 'Passed' : (statusCode === 'D' ? 'Dropped Out' : (statusCode === 'R' ? 'Referred' : 'Referred')));
+        var gpas = {};
+        var sems = {};
+        var latestSem = rawRec.l || rawRec.latestSemester || 0;
+        for (var k = 1; k <= 8; k++) {
+            var gv = rawRec['gpa' + k] !== undefined ? rawRec['gpa' + k] : (rawRec['g' + k] !== undefined ? rawRec['g' + k] : (rawRec['s' + k] !== undefined ? rawRec['s' + k] : null));
+            if (gv !== null && gv !== undefined && String(gv).trim() !== '') {
+                var gs = String(gv).trim();
+                var low = gs.toLowerCase();
+                var isRef = low === 'ref' || low === 'referred';
+                var isAbs = low === 'abs' || low === 'absent';
+                var isDrop = low === 'drop' || low === 'dropped';
+                var num = parseFloat(gs);
+                gpas['gpa' + k] = isRef ? 'Referred' : (isAbs ? 'Absent' : (isDrop ? 'Dropped' : (!isNaN(num) ? num.toFixed(2) : gs)));
+                sems[k] = {
+                    semester: k,
+                    value: gpas['gpa' + k],
+                    numericValue: !isNaN(num) && !isRef && !isAbs && !isDrop ? num : null,
+                    isReferred: isRef,
+                    isAbsent: isAbs,
+                    isPassed: !isRef && !isAbs && !isDrop && !isNaN(num),
+                    label: isRef ? 'রেফার্ড (Ref)' : gpas['gpa' + k]
+                };
+                if (k > latestSem) latestSem = k;
+            }
+        }
+        if (Object.keys(sems).length === 0 && rawRec.g && status === 'Passed' && latestSem > 0) {
+            var gNum = parseFloat(rawRec.g);
+            if (!isNaN(gNum)) {
+                gpas['gpa' + latestSem] = gNum.toFixed(2);
+                sems[latestSem] = { semester: latestSem, value: gNum.toFixed(2), numericValue: gNum, isReferred: false, isAbsent: false, isPassed: true, label: gNum.toFixed(2) };
+            }
+        }
+        var rawRefs = Array.isArray(rawRec.rf) ? rawRec.rf : (Array.isArray(rawRec.r) ? rawRec.r : (Array.isArray(rawRec.referred) ? rawRec.referred : []));
+        var refCodes = [];
+        var refSubjects = [];
+        for (var j = 0; j < rawRefs.length; j++) {
+            var item = String(rawRefs[j] || '').trim();
+            if (!item) continue;
+            var m = item.match(/^(\d+)(?:\(([TP,]+)\))?/i);
+            var subCode = m ? m[1] : item;
+            var subType = m && m[2] ? m[2].toUpperCase() : 'T';
+            refCodes.push(subCode);
+            refSubjects.push({
+                code: subCode,
+                type: subType,
+                typeLabel: subType === 'P' ? 'ব্যবহারিক' : (subType === 'T,P' || subType === 'P,T' ? 'তত্ত্বীয় ও ব্যবহারিক' : 'তত্ত্বীয়'),
+                badgeClass: subType === 'P' ? 'badge-info' : 'badge-warning',
+                raw: item
+            });
+        }
+        var obj = {
+            roll: roll,
+            institute_code: rawRec.institute_code || rawRec.instituteCode || rawRec.ic || null,
+            institute_name: rawRec.institute_name || rawRec.instituteName || rawRec.in || null,
+            gpa8: gpas.gpa8 || null, gpa7: gpas.gpa7 || null, gpa6: gpas.gpa6 || null, gpa5: gpas.gpa5 || null,
+            gpa4: gpas.gpa4 || null, gpa3: gpas.gpa3 || null, gpa2: gpas.gpa2 || null, gpa1: gpas.gpa1 || null,
+            referred: refCodes,
+            referredSubjects: refSubjects,
+            semesters: sems,
+            status: status,
+            statusBangla: status === 'Passed' ? 'উত্তীর্ণ' : (status === 'Dropped Out' ? 'ড্রপ আউট' : 'রেফার্ড'),
+            statusType: status === 'Passed' ? 'success' : (status === 'Dropped Out' ? 'danger' : 'warning'),
+            latestSemester: latestSem || 5,
+            regulation: rawRec.reg || rawRec.regulation || '2022',
+            examYear: rawRec.ey || rawRec.examYear || '',
+            source: rawRec.src || rawRec.source || 'pdf',
+            sourcePriority: (rawRec.src || rawRec.source) === 'pasted' ? 5 : 10,
+            sources: [rawRec.src || rawRec.source || 'pdf']
+        };
+        return obj;
+    }
+
+    async function _putStudentsChunked(db, records) {
+        if (!db || !records || records.length === 0) return;
+        var CHUNK = 4000;
+        for (var start = 0; start < records.length; start += CHUNK) {
+            var end = Math.min(start + CHUNK, records.length);
+            await new Promise(function (resolve) {
+                try {
+                    var tx = db.transaction(['students'], 'readwrite');
+                    var store = tx.objectStore('students');
+                    for (var idx = start; idx < end; idx++) {
+                        store.put(records[idx]);
+                    }
+                    tx.oncomplete = function () { resolve(); };
+                    tx.onerror = function () { resolve(); };
+                    tx.onabort = function () { resolve(); };
+                } catch (e) {
+                    resolve();
+                }
+            });
+        }
+    }
+
+    async function _repairMissingInstitutesAsync(db) {
+        try {
+            var missingRolls = [];
+            cachedStudentsMap.forEach(function (st, rollKey) {
+                _syncInstituteAliases(st);
+                if (!st.institute_code || !st.institute_name) {
+                    missingRolls.push(rollKey);
+                }
+            });
+            if (missingRolls.length === 0) return 0;
+
+            var repairedList = [];
+            var stillMissing = [];
+
+            // Step A: Repair from BTEBResultsDatabase if populated
+            if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getStudent) {
+                for (var i = 0; i < missingRolls.length; i++) {
+                    var r = missingRolls[i];
+                    var bRec = BTEBResultsDatabase.getStudent(r);
+                    var cur = cachedStudentsMap.get(r);
+                    if (bRec && (bRec.institute_code || bRec.instituteCode || bRec.ic || bRec.institute_name || bRec.instituteName || bRec.in)) {
+                        var patched = mergeStudentRecords(bRec, cur);
+                        _syncInstituteAliases(patched);
+                        if (patched.institute_code || patched.institute_name) {
+                            cachedStudentsMap.set(r, patched);
+                            if (typeof BTEBParser !== 'undefined' && BTEBParser.setStudent) BTEBParser.setStudent(patched);
+                            repairedList.push(patched);
+                            continue;
+                        }
+                    }
+                    stillMissing.push(r);
+                }
+            } else {
+                stillMissing = missingRolls;
+            }
+
+            // Step B: Re-parse stored IndexedDB rawTexts to recover headers stripped by older versions
+            if (stillMissing.length > 0 && db && typeof BTEBParser !== 'undefined' && BTEBParser.parseAll) {
+                var stillSet = {};
+                for (var s = 0; s < stillMissing.length; s++) stillSet[stillMissing[s]] = true;
+
+                var sheetsMeta = getAllSheets();
+                var semBySheetId = {};
+                for (var sm = 0; sm < sheetsMeta.length; sm++) {
+                    semBySheetId[sheetsMeta[sm].id] = parseInt(sheetsMeta[sm].semester, 10) || 5;
+                }
+
+                var rawRows = await new Promise(function (resolve) {
+                    try {
+                        var tx = db.transaction(['rawTexts'], 'readonly');
+                        var req = tx.objectStore('rawTexts').getAll();
+                        req.onsuccess = function () { resolve(req.result || []); };
+                        req.onerror = function () { resolve([]); };
+                    } catch (e) { resolve([]); }
+                });
+
+                for (var rt = 0; rt < rawRows.length; rt++) {
+                    var txt = rawRows[rt] && rawRows[rt].text;
+                    if (!txt || txt.length < 10) continue;
+                    var defSem = semBySheetId[rawRows[rt].sheetId] || 5;
+                    var reparsed = BTEBParser.parseAll(txt, defSem);
+                    for (var rp = 0; rp < reparsed.length; rp++) {
+                        var rSt = reparsed[rp];
+                        var rr = String(rSt.roll || '').trim();
+                        if (!rr || !stillSet[rr] || !(rSt.institute_code && rSt.institute_name)) continue;
+                        var existingCur = cachedStudentsMap.get(rr);
+                        var fixed = mergeStudentRecords(existingCur, rSt);
+                        _syncInstituteAliases(fixed);
+                        cachedStudentsMap.set(rr, fixed);
+                        if (typeof BTEBParser.setStudent === 'function') BTEBParser.setStudent(fixed);
+                        repairedList.push(fixed);
+                        delete stillSet[rr];
+                    }
+                }
+            }
+
+            if (repairedList.length > 0) {
+                var compactDb = _read(KEYS.STUDENTS_COMPACT);
+                if (compactDb && typeof compactDb === 'object' && Object.keys(compactDb).length > 0) {
+                    for (var u = 0; u < repairedList.length; u++) {
+                        compactDb[repairedList[u].roll] = repairedList[u];
+                    }
+                    if (!_write(KEYS.STUDENTS_COMPACT, compactDb)) {
+                        try { localStorage.removeItem(KEYS.STUDENTS_COMPACT); } catch (e) {}
+                    }
+                }
+                if (db) {
+                    await _putStudentsChunked(db, repairedList);
+                }
+            }
+            return repairedList.length;
+        } catch (err) {
+            return 0;
+        }
+    }
+
     function initDB() {
         // 1. Fast load from pre-bundled Project Database
         if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getDatabase) {
             var bundled = BTEBResultsDatabase.getDatabase();
             for (var br in bundled) {
                 if (Object.prototype.hasOwnProperty.call(bundled, br)) {
-                    _hydrateStudent(bundled[br]);
+                    var bRec = BTEBResultsDatabase.getStudent ? BTEBResultsDatabase.getStudent(br) : bundled[br];
+                    _syncInstituteAliases(bRec);
+                    _hydrateStudent(bRec);
                 }
             }
         }
@@ -317,6 +534,7 @@ const BTEBStorage = (function () {
         var compactDb = _read(KEYS.STUDENTS_COMPACT) || {};
         var rolls = Object.keys(compactDb);
         for (var i = 0; i < rolls.length; i++) {
+            _syncInstituteAliases(compactDb[rolls[i]]);
             _hydrateStudent(compactDb[rolls[i]]);
         }
 
@@ -326,8 +544,10 @@ const BTEBStorage = (function () {
             if (db) {
                 var idbRows = await _readAllIndexedDBStudents(db);
                 for (var j = 0; j < idbRows.length; j++) {
+                    _syncInstituteAliases(idbRows[j]);
                     _hydrateStudent(idbRows[j]);
                 }
+                await _repairMissingInstitutesAsync(db);
             }
             return true;
         })();
@@ -429,23 +649,23 @@ const BTEBStorage = (function () {
         allSheets.unshift(sheetMeta);
         _write(KEYS.SHEETS_META, allSheets);
 
-        // 4. Save into IndexedDB if supported
+        // 4. Save into IndexedDB safely in batches (prevents single-tx memory pressure on Android Chrome)
         var db = await getDB();
         if (db) {
             try {
                 await new Promise(function (resolve) {
-                    var tx = db.transaction(['sheets', 'students', 'rawTexts'], 'readwrite');
+                    var tx = db.transaction(['sheets', 'rawTexts'], 'readwrite');
                     tx.oncomplete = function () { resolve(); };
                     tx.onerror = function () { resolve(); };
                     tx.objectStore('sheets').put(sheetMeta);
                     tx.objectStore('rawTexts').put({ sheetId: sheetId, text: rawText });
-                    var studentStore = tx.objectStore('students');
-                    for (var j = 0; j < students.length; j++) {
-                        var curRoll = String(students[j].roll).trim();
-                        var finalStudentObj = compactDb[curRoll] || students[j];
-                        studentStore.put(finalStudentObj);
-                    }
                 });
+                var finalRecords = [];
+                for (var j = 0; j < students.length; j++) {
+                    var curRoll = String(students[j].roll).trim();
+                    finalRecords.push(cachedStudentsMap.get(curRoll) || compactDb[curRoll] || students[j]);
+                }
+                await _putStudentsChunked(db, finalRecords);
             } catch (err) {
                 console.warn('[BTEBStorage] IndexedDB async save warning:', err);
             }
@@ -528,19 +748,28 @@ const BTEBStorage = (function () {
     async function deleteAllSheets() {
         _write(KEYS.SHEETS_META, []);
         _write(KEYS.STUDENTS_COMPACT, {});
+        try { localStorage.removeItem(KEYS.STUDENTS_COMPACT); } catch (e) {}
         cachedStudentsMap.clear();
 
         if (typeof BTEBParser !== 'undefined' && BTEBParser.clearIndex) {
             BTEBParser.clearIndex();
         }
+        if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.clearDatabase) {
+            BTEBResultsDatabase.clearDatabase();
+        }
 
         var db = await getDB();
         if (db) {
             try {
-                var tx = db.transaction(['sheets', 'students', 'rawTexts'], 'readwrite');
-                tx.objectStore('sheets').clear();
-                tx.objectStore('students').clear();
-                tx.objectStore('rawTexts').clear();
+                await new Promise(function (resolve) {
+                    var tx = db.transaction(['sheets', 'students', 'rawTexts'], 'readwrite');
+                    tx.oncomplete = function () { resolve(); };
+                    tx.onerror = function () { resolve(); };
+                    tx.onabort = function () { resolve(); };
+                    tx.objectStore('sheets').clear();
+                    tx.objectStore('students').clear();
+                    tx.objectStore('rawTexts').clear();
+                });
             } catch (e) {}
         }
 
@@ -607,16 +836,21 @@ const BTEBStorage = (function () {
             merged = mergeStudentRecords(merged, candidates[i]);
         }
 
+        _syncInstituteAliases(merged);
         cachedStudentsMap.set(cleanRoll, merged);
         return merged;
     }
 
     async function getStudentAsync(roll) {
+        if (activeImportPromise) {
+            try { await activeImportPromise; } catch (e) {}
+        }
         var st = getStudent(roll);
         var cleanRoll = (typeof BTEBParser !== 'undefined' && BTEBParser.cleanRollNumber)
             ? BTEBParser.cleanRollNumber(roll)
             : (typeof BTEBParser !== 'undefined' ? BTEBParser.normalizeDigits(roll) : String(roll).trim());
         if (!cleanRoll) return st;
+        var stripped = cleanRoll.replace(/^0+/, '');
 
         var db = await getDB();
         if (db) {
@@ -632,21 +866,43 @@ const BTEBStorage = (function () {
                 };
 
                 var idbStudent = await readOne(cleanRoll);
-                if (!idbStudent) {
-                    var stripped = cleanRoll.replace(/^0+/, '');
-                    if (stripped && stripped !== cleanRoll) {
-                        idbStudent = await readOne(stripped);
-                    }
+                if (!idbStudent && stripped && stripped !== cleanRoll) {
+                    idbStudent = await readOne(stripped);
                 }
 
                 if (idbStudent) {
+                    _syncInstituteAliases(idbStudent);
                     st = mergeStudentRecords(st, idbStudent);
-                    cachedStudentsMap.set(cleanRoll, st);
-                    if (typeof BTEBParser !== 'undefined' && BTEBParser.setStudent) {
-                        BTEBParser.setStudent(st);
-                    }
                 }
             } catch (e) {}
+        }
+
+        // Cross-device guarantee: if stored record has missing Institute/EIIN, patch from pre-bundled DB or parser index
+        if (st && (!st.institute_code || !st.institute_name)) {
+            if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getStudent) {
+                var rdbRec = BTEBResultsDatabase.getStudent(cleanRoll) || (stripped && stripped !== cleanRoll ? BTEBResultsDatabase.getStudent(stripped) : null);
+                if (rdbRec) {
+                    _syncInstituteAliases(rdbRec);
+                    if (rdbRec.institute_code && !st.institute_code) st.institute_code = rdbRec.institute_code;
+                    if (rdbRec.institute_name && !st.institute_name) st.institute_name = rdbRec.institute_name;
+                }
+            }
+            if ((!st.institute_code || !st.institute_name) && typeof BTEBParser !== 'undefined' && BTEBParser.instantLookup) {
+                var idxRec = BTEBParser.instantLookup(cleanRoll);
+                if (idxRec) {
+                    _syncInstituteAliases(idxRec);
+                    if (idxRec.institute_code && !st.institute_code) st.institute_code = idxRec.institute_code;
+                    if (idxRec.institute_name && !st.institute_name) st.institute_name = idxRec.institute_name;
+                }
+            }
+        }
+
+        if (st) {
+            _syncInstituteAliases(st);
+            cachedStudentsMap.set(cleanRoll, st);
+            if (typeof BTEBParser !== 'undefined' && BTEBParser.setStudent) {
+                BTEBParser.setStudent(st);
+            }
         }
         return st;
     }
@@ -665,18 +921,29 @@ const BTEBStorage = (function () {
 
         if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getDatabase) {
             var bundled = BTEBResultsDatabase.getDatabase();
-            Object.keys(bundled).forEach(function (k) { addIntoMap(bundled[k]); });
+            Object.keys(bundled).forEach(function (k) {
+                var rec = BTEBResultsDatabase.getStudent ? BTEBResultsDatabase.getStudent(k) : bundled[k];
+                _syncInstituteAliases(rec);
+                addIntoMap(rec);
+            });
         }
 
         var compactDb = _read(KEYS.STUDENTS_COMPACT) || {};
-        Object.keys(compactDb).forEach(function (k) { addIntoMap(compactDb[k]); });
+        Object.keys(compactDb).forEach(function (k) {
+            _syncInstituteAliases(compactDb[k]);
+            addIntoMap(compactDb[k]);
+        });
 
-        cachedStudentsMap.forEach(function (val) { addIntoMap(val); });
+        cachedStudentsMap.forEach(function (val) {
+            _syncInstituteAliases(val);
+            addIntoMap(val);
+        });
 
         var db = await getDB();
         if (db) {
             var idbRows = await _readAllIndexedDBStudents(db);
             for (var i = 0; i < idbRows.length; i++) {
+                _syncInstituteAliases(idbRows[i]);
                 addIntoMap(idbRows[i]);
             }
         }
@@ -789,74 +1056,124 @@ const BTEBStorage = (function () {
         return lines.length;
     }
 
-    function importFromJSON(rawJson) {
-        try {
-            var parsed = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
-            if (!parsed || typeof parsed !== 'object') {
-                return { success: false, error: 'Invalid backup JSON format' };
-            }
+    function _prepareImport(rawJson) {
+        var parsed = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+        if (!parsed || typeof parsed !== 'object') {
+            return { error: 'Invalid backup JSON format' };
+        }
 
-            if (Array.isArray(parsed.sheets)) {
-                _write(KEYS.SHEETS_META, parsed.sheets);
-            }
-            if (Array.isArray(parsed.materials)) {
-                _write(KEYS.MATERIALS, parsed.materials);
-            }
-            if (parsed.siteSettings && typeof parsed.siteSettings === 'object') {
-                saveSiteSettings(parsed.siteSettings);
-            }
-            if (parsed.config && typeof parsed.config === 'object') {
-                saveConfig(parsed.config);
-            }
+        if (Array.isArray(parsed.sheets)) {
+            _write(KEYS.SHEETS_META, parsed.sheets);
+        }
+        if (Array.isArray(parsed.materials)) {
+            _write(KEYS.MATERIALS, parsed.materials);
+        }
+        if (parsed.siteSettings && typeof parsed.siteSettings === 'object') {
+            saveSiteSettings(parsed.siteSettings);
+        }
+        if (parsed.config && typeof parsed.config === 'object') {
+            saveConfig(parsed.config);
+        }
 
-            var studentsMap = parsed.students && !Array.isArray(parsed.students) ? parsed.students : null;
-            var importedStudents = [];
-            if (studentsMap) {
-                var compactDb = _read(KEYS.STUDENTS_COMPACT) || {};
-                var rolls = Object.keys(studentsMap);
-                for (var i = 0; i < rolls.length; i++) {
-                    var st = studentsMap[rolls[i]];
-                    if (!st || !st.roll) continue;
-                    var rKey = String(st.roll).trim();
-                    var merged = mergeStudentRecords(cachedStudentsMap.get(rKey) || compactDb[rKey], st);
-                    cachedStudentsMap.set(rKey, merged);
-                    compactDb[rKey] = merged;
-                    importedStudents.push(merged);
-                    if (typeof BTEBParser !== 'undefined' && BTEBParser.setStudent) {
-                        BTEBParser.setStudent(merged);
-                    }
-                    if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.mergeStudent) {
-                        BTEBResultsDatabase.mergeStudent(merged);
-                    }
+        // Detect students source: full backup ({ students: {...|[]} }) OR exportOptimizedJSON top-level map
+        var studentsSource = null;
+        if (parsed.students && typeof parsed.students === 'object') {
+            studentsSource = parsed.students;
+        } else if (!parsed.sheets && !parsed.materials && !parsed.siteSettings) {
+            var topKeys = Object.keys(parsed);
+            if (topKeys.length > 0 && /^\d{4,10}$/.test(topKeys[0])) {
+                studentsSource = parsed;
+            }
+        }
+
+        var importedStudents = [];
+        if (studentsSource) {
+            var compactDb = _read(KEYS.STUDENTS_COMPACT) || {};
+            var entries = Array.isArray(studentsSource)
+                ? studentsSource.map(function (item) { return [item && item.roll, item]; })
+                : Object.keys(studentsSource).map(function (k) { return [k, studentsSource[k]]; });
+
+            for (var i = 0; i < entries.length; i++) {
+                var rKeyRaw = entries[i][0];
+                var rawSt = entries[i][1];
+                var st = _expandImportedRecord(rKeyRaw, rawSt);
+                if (!st || !st.roll) continue;
+                var rKey = String(st.roll).trim();
+                var merged = mergeStudentRecords(cachedStudentsMap.get(rKey) || compactDb[rKey], st);
+                _syncInstituteAliases(merged);
+                cachedStudentsMap.set(rKey, merged);
+                compactDb[rKey] = merged;
+                importedStudents.push(merged);
+                if (typeof BTEBParser !== 'undefined' && BTEBParser.setStudent) {
+                    BTEBParser.setStudent(merged);
                 }
-                if (!_write(KEYS.STUDENTS_COMPACT, compactDb)) {
-                    try { localStorage.removeItem(KEYS.STUDENTS_COMPACT); } catch (e) {}
-                }
-
-                // Persist imported students asynchronously into IndexedDB
-                if (importedStudents.length > 0) {
-                    getDB().then(function (db) {
-                        if (!db) return;
-                        try {
-                            var tx = db.transaction(['students'], 'readwrite');
-                            var store = tx.objectStore('students');
-                            for (var j = 0; j < importedStudents.length; j++) {
-                                store.put(importedStudents[j]);
-                            }
-                        } catch (e) {}
-                    });
+                if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.mergeStudent) {
+                    BTEBResultsDatabase.mergeStudent(merged);
                 }
             }
+            if (!_write(KEYS.STUDENTS_COMPACT, compactDb)) {
+                try { localStorage.removeItem(KEYS.STUDENTS_COMPACT); } catch (e) {}
+            }
+        }
 
-            return {
+        return {
+            parsed: parsed,
+            importedStudents: importedStudents,
+            summary: {
                 success: true,
                 sheetCount: Array.isArray(parsed.sheets) ? parsed.sheets.length : 0,
                 materialCount: Array.isArray(parsed.materials) ? parsed.materials.length : 0,
                 studentCount: importedStudents.length
-            };
+            }
+        };
+    }
+
+    function importFromJSON(rawJson) {
+        try {
+            var prep = _prepareImport(rawJson);
+            if (prep.error) return { success: false, error: prep.error };
+            if (prep.importedStudents.length > 0) {
+                activeImportPromise = getDB().then(function (db) {
+                    return _putStudentsChunked(db, prep.importedStudents);
+                }).catch(function () {});
+            }
+            return prep.summary;
         } catch (err) {
             return { success: false, error: err && err.message ? err.message : 'Parse error' };
         }
+    }
+
+    async function importFromJSONAsync(rawJson) {
+        try {
+            var prep = _prepareImport(rawJson);
+            if (prep.error) return { success: false, error: prep.error };
+            if (prep.importedStudents.length > 0) {
+                activeImportPromise = getDB().then(function (db) {
+                    return _putStudentsChunked(db, prep.importedStudents);
+                }).catch(function () {});
+                await activeImportPromise;
+            }
+            return prep.summary;
+        } catch (err) {
+            return { success: false, error: err && err.message ? err.message : 'Parse error' };
+        }
+    }
+
+    async function getDatabaseHealthAsync() {
+        if (initDBPromise) {
+            try { await initDBPromise; } catch (e) {}
+        }
+        var total = cachedStudentsMap.size;
+        var missingInst = 0;
+        cachedStudentsMap.forEach(function (st) {
+            _syncInstituteAliases(st);
+            if (!st.institute_code || !st.institute_name) missingInst++;
+        });
+        return {
+            totalStudents: total,
+            missingInstituteCount: missingInst,
+            sheetsCount: getAllSheets().length
+        };
     }
 
     // ─── Individual Student Operations ───
@@ -1046,16 +1363,143 @@ const BTEBStorage = (function () {
 
     async function exportResultsDatabaseJs() {
         var allStudents = await getAllStudentsAsync();
-        if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.exportAsJsFile) {
-            var rolls = Object.keys(allStudents);
-            for (var i = 0; i < rolls.length; i++) {
-                BTEBResultsDatabase.mergeStudent(allStudents[rolls[i]]);
+        var rolls = Object.keys(allStudents);
+        var institutes = {};
+        var compactDb = {};
+
+        for (var i = 0; i < rolls.length; i++) {
+            var r = rolls[i];
+            var st = allStudents[r];
+            if (!st) continue;
+            _syncInstituteAliases(st);
+            var ic = st.institute_code || '';
+            var inName = st.institute_name || '';
+            if (ic && inName) {
+                institutes[ic] = inName;
             }
-            BTEBResultsDatabase.exportAsJsFile();
-            return;
+            var entry = {
+                s: st.status === 'Passed' ? 'P' : (st.status === 'Dropped Out' ? 'D' : 'R')
+            };
+            if (ic) entry.ic = ic;
+            if (inName && (!ic || institutes[ic] !== inName)) entry.in = inName;
+            if (st.latestSemester && st.latestSemester !== 5) entry.l = st.latestSemester;
+            if (st.regulation && st.regulation !== '2022') entry.reg = st.regulation;
+            if (st.examYear) entry.ey = st.examYear;
+            if (st.source && st.source !== 'pdf') entry.src = st.source;
+            for (var s = 1; s <= 8; s++) {
+                var sv = st['gpa' + s];
+                if (!sv && st.semesters && st.semesters[s]) sv = st.semesters[s].value;
+                if (sv !== null && sv !== undefined && sv !== '') {
+                    entry['g' + s] = sv === 'Referred' ? 'ref' : (sv === 'Absent' ? 'abs' : (sv === 'Dropped' ? 'drop' : sv));
+                }
+            }
+            var refs = [];
+            if (Array.isArray(st.referredSubjects) && st.referredSubjects.length > 0) {
+                for (var rfIdx = 0; rfIdx < st.referredSubjects.length; rfIdx++) {
+                    var rs = st.referredSubjects[rfIdx];
+                    refs.push((rs && (rs.raw || rs.code)) ? String(rs.raw || rs.code) : String(rs));
+                }
+            } else if (Array.isArray(st.referred) && st.referred.length > 0) {
+                refs = st.referred.slice();
+            }
+            if (refs.length > 0) entry.rf = refs;
+            compactDb[r] = entry;
         }
-        var content = 'const BTEBResultsDatabase = (function () {\n    \'use strict\';\n    const database = '
-            + JSON.stringify(allStudents, null, 4) + ';\n    return {\n        getStudent: function (r) { return database[r] || null; },\n        getCount: function () { return Object.keys(database).length; }\n    };\n})();\n';
+
+        var nowIso = new Date().toISOString();
+        var content = '/**\n * BTEB Portal - Compact Pre-bundled Results Database (results_database.js)\n'
+            + ' * Generated at: ' + nowIso + ' | Records: ' + rolls.length + '\n'
+            + ' * Compact Institute-Deduplicated Schema for Fast Mobile Chrome Loading\n */\n\n'
+            + 'const BTEBResultsDatabase = (function () {\n    \'use strict\';\n'
+            + '    const institutes = ' + JSON.stringify(institutes) + ';\n'
+            + '    const database = ' + JSON.stringify(compactDb) + ';\n\n'
+            + '    function cleanRoll(r) {\n'
+            + '        if (r === null || r === undefined) return \'\';\n'
+            + '        var s = String(r).trim();\n'
+            + '        var b = {\'০\':\'0\',\'১\':\'1\',\'২\':\'2\',\'৩\':\'3\',\'৪\':\'4\',\'৫\':\'5\',\'৬\':\'6\',\'৭\':\'7\',\'৮\':\'8\',\'৯\':\'9\'};\n'
+            + '        return s.replace(/[০-৯]/g, function(d){ return b[d]||d; }).replace(/\\D/g, \'\');\n'
+            + '    }\n\n'
+            + '    function expandStudent(rollKey, raw) {\n'
+            + '        if (!raw || typeof raw !== \'object\') return null;\n'
+            + '        if (raw.roll && raw.semesters) {\n'
+            + '            if (!raw.institute_code && raw.ic) raw.institute_code = raw.ic;\n'
+            + '            if (!raw.institute_name && (raw.in || institutes[raw.institute_code])) raw.institute_name = raw.in || institutes[raw.institute_code];\n'
+            + '            return raw;\n'
+            + '        }\n'
+            + '        var status = raw.s === \'P\' ? \'Passed\' : (raw.s === \'D\' ? \'Dropped Out\' : \'Referred\');\n'
+            + '        var semesters = {};\n'
+            + '        var gpas = {};\n'
+            + '        var latest = raw.l || 0;\n'
+            + '        for (var k = 1; k <= 8; k++) {\n'
+            + '            var gv = raw[\'g\' + k];\n'
+            + '            if (gv !== undefined && gv !== null && gv !== \'\') {\n'
+            + '                var gs = String(gv);\n'
+            + '                var low = gs.toLowerCase();\n'
+            + '                var isRef = low === \'ref\' || low === \'referred\';\n'
+            + '                var isAbs = low === \'abs\' || low === \'absent\';\n'
+            + '                var isDrop = low === \'drop\' || low === \'dropped\';\n'
+            + '                var num = parseFloat(gs);\n'
+            + '                var val = isRef ? \'Referred\' : (isAbs ? \'Absent\' : (isDrop ? \'Dropped\' : gs));\n'
+            + '                gpas[\'gpa\' + k] = val;\n'
+            + '                semesters[k] = {\n'
+            + '                    semester: k, value: val,\n'
+            + '                    numericValue: (!isNaN(num) && !isRef && !isAbs && !isDrop) ? num : null,\n'
+            + '                    isReferred: isRef, isAbsent: isAbs, isPassed: (!isRef && !isAbs && !isDrop && !isNaN(num)),\n'
+            + '                    label: isRef ? \'রেফার্ড (Ref)\' : val\n'
+            + '                };\n'
+            + '                if (k > latest) latest = k;\n'
+            + '            }\n'
+            + '        }\n'
+            + '        var refCodes = [];\n'
+            + '        var refSubjects = [];\n'
+            + '        if (Array.isArray(raw.rf)) {\n'
+            + '            for (var j = 0; j < raw.rf.length; j++) {\n'
+            + '                var item = String(raw.rf[j] || \'\').trim();\n'
+            + '                var m = item.match(/^(\\d+)(?:\\(([TP,]+)\\))?/i);\n'
+            + '                var code = m ? m[1] : item;\n'
+            + '                var t = m && m[2] ? m[2].toUpperCase() : \'T\';\n'
+            + '                refCodes.push(code);\n'
+            + '                refSubjects.push({\n'
+            + '                    code: code, type: t,\n'
+            + '                    typeLabel: t === \'P\' ? \'ব্যবহারিক\' : (t.indexOf(\',\') !== -1 ? \'তত্ত্বীয় ও ব্যবহারিক\' : \'তত্ত্বীয়\'),\n'
+            + '                    badgeClass: t === \'P\' ? \'badge-info\' : \'badge-warning\', raw: item\n'
+            + '                });\n'
+            + '            }\n'
+            + '        }\n'
+            + '        var ic = raw.ic || null;\n'
+            + '        var inName = raw.in || (ic ? institutes[ic] : null) || null;\n'
+            + '        var src = raw.src || \'pdf\';\n'
+            + '        return {\n'
+            + '            roll: rollKey, institute_code: ic, institute_name: inName,\n'
+            + '            gpa8: gpas.gpa8 || null, gpa7: gpas.gpa7 || null, gpa6: gpas.gpa6 || null, gpa5: gpas.gpa5 || null,\n'
+            + '            gpa4: gpas.gpa4 || null, gpa3: gpas.gpa3 || null, gpa2: gpas.gpa2 || null, gpa1: gpas.gpa1 || null,\n'
+            + '            referred: refCodes, referredSubjects: refSubjects, semesters: semesters,\n'
+            + '            status: status,\n'
+            + '            statusBangla: status === \'Passed\' ? \'উত্তীর্ণ\' : (status === \'Dropped Out\' ? \'ড্রপ আউট\' : \'রেফার্ড\'),\n'
+            + '            statusType: status === \'Passed\' ? \'success\' : (status === \'Dropped Out\' ? \'danger\' : \'warning\'),\n'
+            + '            latestSemester: latest || 5, regulation: raw.reg || \'2022\', examYear: raw.ey || \'\',\n'
+            + '            source: src, sourcePriority: src === \'pasted\' ? 5 : 10, sources: [src]\n'
+            + '        };\n'
+            + '    }\n\n'
+            + '    function getStudent(roll) {\n'
+            + '        var k = cleanRoll(roll);\n'
+            + '        if (!k) return null;\n'
+            + '        if (database[k]) return expandStudent(k, database[k]);\n'
+            + '        var s = k.replace(/^0+/, \'\');\n'
+            + '        return (s && database[s]) ? expandStudent(s, database[s]) : null;\n'
+            + '    }\n'
+            + '    function setStudent(st) { if (st && st.roll) { var r = cleanRoll(st.roll); if (r) database[r] = st; } }\n'
+            + '    function mergeStudent(st) { setStudent(st); return getStudent(st && st.roll); }\n'
+            + '    function getAllRolls() { return Object.keys(database); }\n'
+            + '    function getCount() { return Object.keys(database).length; }\n'
+            + '    function getDatabase() { return database; }\n'
+            + '    function clearDatabase() { for (var k in database) { delete database[k]; } }\n'
+            + '    return {\n'
+            + '        getStudent: getStudent, setStudent: setStudent, mergeStudent: mergeStudent,\n'
+            + '        getAllRolls: getAllRolls, getCount: getCount, getDatabase: getDatabase, clearDatabase: clearDatabase\n'
+            + '    };\n})();\n'
+            + 'if (typeof module !== \'undefined\' && module.exports) { module.exports = BTEBResultsDatabase; }\n';
+
         var blob = new Blob([content], { type: 'application/javascript;charset=utf-8' });
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
@@ -1078,12 +1522,14 @@ const BTEBStorage = (function () {
         getStudent: getStudent,
         getStudentAsync: getStudentAsync,
         getAllStudentsAsync: getAllStudentsAsync,
+        getDatabaseHealthAsync: getDatabaseHealthAsync,
         getTotalStats: getTotalStats,
         exportDatabaseAsJSON: exportDatabaseAsJSON,
         exportResultsDatabaseJs: exportResultsDatabaseJs,
         exportAsJSON: exportAsJSON,
         exportAsText: exportAsText,
         importFromJSON: importFromJSON,
+        importFromJSONAsync: importFromJSONAsync,
         mergeStudentRecords: mergeStudentRecords,
         addOrUpdateStudent: addOrUpdateStudent,
         deleteStudent: deleteStudent,

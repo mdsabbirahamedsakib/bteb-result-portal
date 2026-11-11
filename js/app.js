@@ -262,16 +262,34 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
-        // 2. Check Pre-bundled Project Database
-        if (!student && typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getStudent) {
-            student = BTEBResultsDatabase.getStudent(roll);
+        // 2. Check Pre-bundled Project Database & patch missing Institute/EIIN on stale local records
+        if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getStudent) {
+            var rdbStudent = BTEBResultsDatabase.getStudent(roll);
+            if (!student) {
+                student = rdbStudent;
+            } else if (rdbStudent && (!(student.institute_code || student.instituteCode || student.ic) || !(student.institute_name || student.instituteName || student.in))) {
+                if (typeof BTEBStorage !== 'undefined' && BTEBStorage.mergeStudentRecords) {
+                    student = BTEBStorage.mergeStudentRecords(rdbStudent, student);
+                } else {
+                    student.institute_code = student.institute_code || rdbStudent.institute_code || rdbStudent.ic || null;
+                    student.institute_name = student.institute_name || rdbStudent.institute_name || rdbStudent.in || null;
+                }
+            }
         }
 
-        // 3. Fallback to BTEBParser in-memory index
-        if (!student && typeof BTEBParser !== 'undefined') {
-            var lookup = BTEBParser.instantLookup('', roll, selectedSemester);
-            if (lookup && lookup.student) {
-                student = lookup.student;
+        // 3. Fallback / Patch from BTEBParser in-memory index
+        if (typeof BTEBParser !== 'undefined') {
+            if (!student) {
+                var lookup = BTEBParser.instantLookup('', roll, selectedSemester);
+                if (lookup && lookup.student) {
+                    student = lookup.student;
+                }
+            } else if (!(student.institute_code || student.instituteCode || student.ic) || !(student.institute_name || student.instituteName || student.in)) {
+                var idxStudent = BTEBParser.instantLookup ? (BTEBParser.instantLookup('', roll, selectedSemester) || {}).student : null;
+                if (idxStudent) {
+                    student.institute_code = student.institute_code || idxStudent.institute_code || idxStudent.ic || null;
+                    student.institute_name = student.institute_name || idxStudent.institute_name || idxStudent.in || null;
+                }
             }
         }
 
@@ -334,16 +352,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
         var studentMeta = (typeof BTEBData !== 'undefined' && BTEBData.getStudentMeta) ? BTEBData.getStudentMeta(data.roll, data) : {
             name: 'শিক্ষার্থী (রোল: ' + data.roll + ')',
-            institute: (data.institute_name || data.instituteName || 'বাংলাদেশ কারিগরি শিক্ষা বোর্ড আওতাধীন পলিটেকনিক ইনস্টিটিউট'),
-            institute_code: (data.institute_code || data.instituteCode || ''),
-            institute_name: (data.institute_name || data.instituteName || ''),
+            institute: (data.institute_name || data.instituteName || data.in || 'বাংলাদেশ কারিগরি শিক্ষা বোর্ড আওতাধীন পলিটেকনিক ইনস্টিটিউট'),
+            institute_code: (data.institute_code || data.instituteCode || data.ic || ''),
+            institute_name: (data.institute_name || data.instituteName || data.in || ''),
             technology: 'ডিপ্লোমা ইন ইঞ্জিনিয়ারিং',
             session: 'বোর্ড পরীক্ষা সেশন',
             regulation: regulation || '২০২২'
         };
 
-        var instituteNameDisplay = data.institute_name || data.instituteName || studentMeta.institute_name || studentMeta.institute;
-        var instituteCodeDisplay = data.institute_code || data.instituteCode || studentMeta.institute_code || '';
+        var instituteNameDisplay = data.institute_name || data.instituteName || data.in || studentMeta.institute_name || studentMeta.institute;
+        var instituteCodeDisplay = data.institute_code || data.instituteCode || data.ic || studentMeta.institute_code || '';
 
         var cgpaData = null;
         try {

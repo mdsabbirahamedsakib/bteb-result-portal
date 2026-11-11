@@ -40,8 +40,10 @@ const BTEBData = (function () {
             return SUBJECT_DIRECTORY[code] || 'কারিগরি বিষয় (' + code + ')';
         },
         getStudentMeta: function (roll, studentData) {
-            var instCode = studentData && (studentData.institute_code || studentData.instituteCode) ? (studentData.institute_code || studentData.instituteCode) : '';
-            var instName = studentData && (studentData.institute_name || studentData.instituteName) ? (studentData.institute_name || studentData.instituteName) : '';
+            var instCode = studentData && (studentData.institute_code || studentData.instituteCode || studentData.ic)
+                ? (studentData.institute_code || studentData.instituteCode || studentData.ic) : '';
+            var instName = studentData && (studentData.institute_name || studentData.instituteName || studentData.in)
+                ? (studentData.institute_name || studentData.instituteName || studentData.in) : '';
             return {
                 name: 'শিক্ষার্থী (রোল: ' + roll + ')',
                 institute: instName || 'বাংলাদেশ কারিগরি শিক্ষা বোর্ড আওতাধীন পলিটেকনিক ইনস্টিটিউট',

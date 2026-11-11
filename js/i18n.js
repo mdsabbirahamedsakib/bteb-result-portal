@@ -91,6 +91,10 @@ const BTEBLang = (function () {
         'শিক্ষার্থীর নাম (Student Name):': 'Student Name:',
         'ইনস্টিটিউট (Institute):': 'Institute:',
         'EIIN / ইনস্টিটিউট কোড:': 'EIIN / Institute Code:',
+        'বাংলাদেশ কারিগরি শিক্ষা বোর্ড আওতাধীন পলিটেকনিক ইনস্টিটিউট': 'Polytechnic Institute under Bangladesh Technical Education Board',
+        '⚠️ পুরনো ডেটাবেস সতর্কতা:': '⚠️ Legacy Database Warning:',
+        '🗑️ পুরনো ডেটা মুছে নতুন আপলোড করুন': '🗑️ Clear Legacy Data & Re-upload',
+        '🗑️ পুরনো ডেটা মুছে ফেলা হয়েছে। এখন নতুন BTEB PDF আপলোড করুন।': '🗑️ Legacy data cleared. Please upload the official BTEB PDF again.',
         'টেকনোলজি (Technology):': 'Technology:',
         'ডিপ্লোমা ইন ইঞ্জিনিয়ারিং': 'Diploma in Engineering',
         'ডিপ্লোমা ইন ইঞ্জিনিয়ারিং': 'Diploma in Engineering',
@@ -731,6 +735,12 @@ const BTEBLang = (function () {
         [/^([১-৮\d]+(?:ম|য়|য়|র্থ|ষ্ঠ)?)\s+পর্ব$/, function (_, sem) { return toOrdinalSem(sem) + ' Semester'; }],
         [/^([১-৮\d]+(?:ম|য়|য়|র্থ|ষ্ঠ)?|all)\s+সেমিস্টার$/, function (_, sem) {
             return String(sem).toLowerCase() === 'all' ? 'All Semesters' : toOrdinalSem(sem) + ' Semester';
+        }],
+        [/^([০-৯\d,]+)টি\s+রোলের\s+ইনস্টিটিউট\s+ও\s+EIIN\s+অনুপস্থিত\s+রয়েছে।\s*পুনরায়\s+অফিসিয়াল\s+PDF\s+আপলোড\s+করুন\s+অথবা\s+আপডেটেড\s+ব্যাকআপ\s+ইমপোর্ট\s+করুন।$/, function (_, n) {
+            return toAsciiDigits(n) + ' roll(s) in this browser lack Institute/EIIN data from an earlier upload. Please re-upload the official PDF or import an updated backup.';
+        }],
+        [/^✅\s*সফলভাবে\s+ইমপোর্ট\s+হয়েছে!\s*([০-৯\d,]+)টি\s+রোল,\s*([০-৯\d,]+)টি\s+শীট\s+ও\s*([০-৯\d,]+)টি\s+মেটেরিয়াল\s+লোড\s+করা\s+হয়েছে।$/, function (_, st, sh, m) {
+            return '✅ Imported successfully! Loaded ' + toAsciiDigits(st) + ' roll(s), ' + toAsciiDigits(sh) + ' sheet(s), and ' + toAsciiDigits(m) + ' material(s).';
         }],
         [/^([১-৮]+(?:ম|য়|য়|র্থ|ষ্ঠ))$/, function (_, sem) { return toOrdinalSem(sem); }],
         [/^[০-৯]+(?:[.,][০-৯]+)*%?$/, function (m) { return toAsciiDigits(m); }]

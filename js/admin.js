@@ -51,6 +51,39 @@ document.addEventListener('DOMContentLoaded', function () {
     loadServerToggleState();
     renderGlobalStats();
     renderSavedSheets();
+    checkDatabaseInstituteHealth();
+
+    async function checkDatabaseInstituteHealth() {
+        if (typeof BTEBStorage === 'undefined' || !BTEBStorage.getDatabaseHealthAsync) return;
+        try {
+            var health = await BTEBStorage.getDatabaseHealthAsync();
+            renderGlobalStats();
+            if (health && health.totalStudents > 0 && health.missingInstituteCount > 0) {
+                var existingWarn = document.getElementById('staleInstituteRepairBanner');
+                if (!existingWarn && savedSheetsContainer && savedSheetsContainer.parentElement) {
+                    var banner = document.createElement('div');
+                    banner.id = 'staleInstituteRepairBanner';
+                    banner.style.cssText = 'margin:0 0 16px 0;padding:14px 16px;border-radius:10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.45);color:#b45309;font-size:13.5px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;';
+                    banner.innerHTML = '<div><strong>⚠️ পুরনো ডেটাবেস সতর্কতা:</strong> <span>'
+                        + health.missingInstituteCount.toLocaleString() + 'টি রোলের ইনস্টিটিউট ও EIIN অনুপস্থিত রয়েছে। পুনরায় অফিসিয়াল PDF আপলোড করুন অথবা আপডেটেড ব্যাকআপ ইমপোর্ট করুন।</span></div>'
+                        + '<button type="button" id="repairWipeBtn" class="btn btn-outline" style="border-color:#d97706;color:#b45309;font-weight:600;padding:6px 12px;font-size:12.5px;">🗑️ পুরনো ডেটা মুছে নতুন আপলোড করুন</button>';
+                    savedSheetsContainer.parentElement.insertBefore(banner, savedSheetsContainer);
+                    var wipeBtn = document.getElementById('repairWipeBtn');
+                    if (wipeBtn) {
+                        wipeBtn.addEventListener('click', async function () {
+                            if (confirm('পুরনো ইনস্টিটিউট-বিহীন ডেটাবেস মুছে ফেলতে চান? মুছে ফেলার পর পুনরায় অফিসিয়াল PDF আপলোড করুন।')) {
+                                await BTEBStorage.deleteAllSheets();
+                                banner.remove();
+                                renderGlobalStats();
+                                renderSavedSheets();
+                                showToast('🗑️ পুরনো ডেটা মুছে ফেলা হয়েছে। এখন নতুন BTEB PDF আপলোড করুন।', 'warning');
+                            }
+                        });
+                    }
+                }
+            }
+        } catch (e) {}
+    }
 
     // Default exam year
     if (examYearInput && !examYearInput.value) {
@@ -366,10 +399,12 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!file) return;
 
             var reader = new FileReader();
-            reader.onload = function (ev) {
-                var result = BTEBStorage.importFromJSON(ev.target.result);
+            reader.onload = async function (ev) {
+                var result = BTEBStorage.importFromJSONAsync
+                    ? await BTEBStorage.importFromJSONAsync(ev.target.result)
+                    : BTEBStorage.importFromJSON(ev.target.result);
                 if (result.success) {
-                    showToast('✅ সফলভাবে ইমপোর্ট হয়েছে! ' + result.sheetCount + 'টি রেজাল্ট শিট ও ' + result.materialCount + 'টি মেটেরিয়াল লোড করা হয়েছে।', 'success');
+                    showToast('✅ সফলভাবে ইমপোর্ট হয়েছে! ' + result.studentCount + 'টি রোল, ' + result.sheetCount + 'টি শীট ও ' + result.materialCount + 'টি মেটেরিয়াল লোড করা হয়েছে।', 'success');
                     loadServerToggleState();
                     renderGlobalStats();
                     renderSavedSheets();
@@ -390,15 +425,15 @@ document.addEventListener('DOMContentLoaded', function () {
     var exportDatabaseJsBtn = document.getElementById('exportDatabaseJsBtn');
 
     if (exportDatabaseJsBtn) {
-        exportDatabaseJsBtn.addEventListener('click', function () {
-            BTEBStorage.exportResultsDatabaseJs();
+        exportDatabaseJsBtn.addEventListener('click', async function () {
+            await BTEBStorage.exportResultsDatabaseJs();
             showToast('💾 results_database.js ফাইল ডাউনলোড সম্পন্ন হয়েছে!', 'success');
         });
     }
 
     if (exportDatabaseJsonBtn) {
-        exportDatabaseJsonBtn.addEventListener('click', function () {
-            BTEBStorage.exportDatabaseAsJSON();
+        exportDatabaseJsonBtn.addEventListener('click', async function () {
+            await BTEBStorage.exportDatabaseAsJSON();
             showToast('📥 রেজাল্ট ডেটাবেস ফাইল (.json) ডাউনলোড হয়েছে!', 'success');
         });
     }
