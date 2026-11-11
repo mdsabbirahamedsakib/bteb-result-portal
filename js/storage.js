@@ -394,15 +394,19 @@ const BTEBStorage = (function () {
         var db = await getDB();
         if (db) {
             try {
-                var tx = db.transaction(['sheets', 'students', 'rawTexts'], 'readwrite');
-                tx.objectStore('sheets').put(sheetMeta);
-                tx.objectStore('rawTexts').put({ sheetId: sheetId, text: rawText });
-                var studentStore = tx.objectStore('students');
-                for (var j = 0; j < students.length; j++) {
-                    var curRoll = String(students[j].roll).trim();
-                    var finalStudentObj = compactDb[curRoll] || students[j];
-                    studentStore.put(finalStudentObj);
-                }
+                await new Promise(function (resolve) {
+                    var tx = db.transaction(['sheets', 'students', 'rawTexts'], 'readwrite');
+                    tx.oncomplete = function () { resolve(); };
+                    tx.onerror = function () { resolve(); };
+                    tx.objectStore('sheets').put(sheetMeta);
+                    tx.objectStore('rawTexts').put({ sheetId: sheetId, text: rawText });
+                    var studentStore = tx.objectStore('students');
+                    for (var j = 0; j < students.length; j++) {
+                        var curRoll = String(students[j].roll).trim();
+                        var finalStudentObj = compactDb[curRoll] || students[j];
+                        studentStore.put(finalStudentObj);
+                    }
+                });
             } catch (err) {
                 console.warn('[BTEBStorage] IndexedDB async save warning:', err);
             }
@@ -425,6 +429,15 @@ const BTEBStorage = (function () {
     function saveSheet(sheetData) {
         saveSheetAsync(sheetData);
         return { success: true };
+    }
+
+    function getCombinedRawText() {
+        var sheets = getAllSheets();
+        var texts = [];
+        for (var i = 0; i < sheets.length; i++) {
+            if (sheets[i].rawText) texts.push(sheets[i].rawText);
+        }
+        return texts.join('\n\n');
     }
 
     /**
@@ -827,6 +840,7 @@ const BTEBStorage = (function () {
         saveSheetAsync: saveSheetAsync,
         deleteSheet: deleteSheet,
         deleteAllSheets: deleteAllSheets,
+        getCombinedRawText: getCombinedRawText,
         getStudent: getStudent,
         getStudentAsync: getStudentAsync,
         getTotalStats: getTotalStats,

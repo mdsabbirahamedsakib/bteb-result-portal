@@ -36,7 +36,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ─── Build combined data source & Pre-index in O(1) Hash Map ───
-    var currentRawData = (typeof BTEBStorage !== 'undefined') ? BTEBStorage.getCombinedRawText() : '';
+    var currentRawData = (typeof BTEBStorage !== 'undefined' && typeof BTEBStorage.getCombinedRawText === 'function') 
+        ? BTEBStorage.getCombinedRawText() 
+        : '';
 
     // Pre-build O(1) index map for instant lookups
     if (typeof BTEBStorage !== 'undefined' && BTEBStorage.initDB) {
@@ -83,6 +85,25 @@ document.addEventListener('DOMContentLoaded', function () {
             executeSearch();
         });
     }
+
+    if (searchBtn) {
+        searchBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            executeSearch();
+        });
+    }
+
+    // Auto-search if roll is provided in URL query parameters
+    try {
+        var urlParams = new URLSearchParams(window.location.search);
+        var qRoll = urlParams.get('roll') || urlParams.get('rollInput');
+        if (qRoll && rollInput) {
+            rollInput.value = qRoll;
+            setTimeout(function () {
+                executeSearch(qRoll);
+            }, 100);
+        }
+    } catch (e) {}
 
     if (rollInput) {
         rollInput.addEventListener('input', function (e) {
