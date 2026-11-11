@@ -234,7 +234,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ─── Step 5: Export Optimized JSON for Hosting ───
     if (exportOptimizedBtn) {
-        exportOptimizedBtn.addEventListener('click', function () {
+        exportOptimizedBtn.addEventListener('click', async function () {
             var rawText = bulkTextarea ? bulkTextarea.value.trim() : '';
 
             // If we already have processed data in memory
@@ -274,9 +274,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            // Export combined data from saved sheets
-            var combined = BTEBStorage.getCombinedRawText();
-            var parsed = BTEBParser.parseAll(combined);
+            // Export combined data from IndexedDB + LocalStorage + Memory
+            var allStudentsMap = (typeof BTEBStorage !== 'undefined' && BTEBStorage.getAllStudentsAsync)
+                ? await BTEBStorage.getAllStudentsAsync()
+                : {};
+            var allRolls = Object.keys(allStudentsMap);
+            var parsed = allRolls.length > 0
+                ? allRolls.map(function (r) { return allStudentsMap[r]; })
+                : BTEBParser.parseAll(BTEBStorage.getCombinedRawText());
+
             if (parsed.length === 0) {
                 showToast('⚠️ কোনো রেজাল্ট ডেটা সংরক্ষিত নেই!', 'warning');
                 return;
@@ -285,13 +291,17 @@ document.addEventListener('DOMContentLoaded', function () {
             var optMap = {};
             parsed.forEach(function (student) {
                 var semCompact = {};
-                for (var s in student.semesters) {
-                    semCompact[s] = student.semesters[s].value;
+                if (student.semesters) {
+                    for (var s in student.semesters) {
+                        semCompact[s] = student.semesters[s].value;
+                    }
                 }
                 optMap[student.roll] = {
                     s: student.status === 'Passed' ? 'P' : (student.status === 'Referred' ? 'R' : 'D'),
                     g: semCompact,
-                    r: student.referredSubjects.map(function (sub) { return sub.raw || sub.code; })
+                    r: (student.referredSubjects || []).map(function (sub) { return sub.raw || sub.code || sub; }),
+                    ic: student.institute_code || student.instituteCode || null,
+                    in: student.institute_name || student.instituteName || null
                 };
             });
 
@@ -1161,7 +1171,7 @@ window.handleChangeCredentialsSubmit = function() {
 // Step 7: Individual Result Management (Add, Edit, Delete)
 // ==========================================================================
 
-window.searchStudentForEdit = function() {
+window.searchStudentForEdit = async function() {
     var searchInput = document.getElementById('searchEditRoll');
     var roll = searchInput ? searchInput.value.trim() : '';
 
@@ -1171,7 +1181,8 @@ window.searchStudentForEdit = function() {
         return;
     }
 
-    var found = BTEBStorage.findStudentInSheets(roll);
+    var foundRaw = BTEBStorage.getStudentAsync ? await BTEBStorage.getStudentAsync(roll) : BTEBStorage.findStudentInSheets(roll);
+    var found = foundRaw ? (foundRaw.student ? foundRaw : { student: foundRaw, sheet: (BTEBStorage.getAllSheets().find(function (sh) { return sh.id === foundRaw.sheetId; }) || null) }) : null;
 
     var banner = document.getElementById('singleSearchFoundBanner');
     var summary = document.getElementById('foundStudentSummary');
@@ -1777,7 +1788,7 @@ window.handlePdfBatch = async function(fileList) {
 
     // Instant Verification Test Handler
     if (testBtn && testInput && testOut) {
-        testBtn.onclick = function() {
+        testBtn.onclick = async function() {
             var queryRoll = BTEBParser.normalizeDigits(testInput.value.trim());
             if (!queryRoll) {
                 testOut.classList.remove('hidden');
@@ -1787,7 +1798,7 @@ window.handlePdfBatch = async function(fileList) {
                 return;
             }
 
-            var found = BTEBStorage.getStudent(queryRoll);
+            var found = BTEBStorage.getStudentAsync ? await BTEBStorage.getStudentAsync(queryRoll) : BTEBStorage.getStudent(queryRoll);
             testOut.classList.remove('hidden');
             if (found) {
                 var statusColor = found.status === 'Passed' ? '#10b981' : (found.status === 'Referred' ? '#f59e0b' : '#ef4444');

@@ -30,6 +30,7 @@ const BTEBStorage = (function () {
     // In-memory student cache for 0.1ms lookups
     const cachedStudentsMap = new Map();
     let dbInstance = null;
+    let initDBPromise = null;
 
     /**
      * Cross-Tab Realtime Synchronization via BroadcastChannel
@@ -251,17 +252,63 @@ const BTEBStorage = (function () {
         });
     }
 
+    function _hydrateStudent(st) {
+        if (!st || !st.roll) return;
+        var rKey = String(st.roll).trim();
+        var merged = cachedStudentsMap.has(rKey)
+            ? mergeStudentRecords(cachedStudentsMap.get(rKey), st)
+            : st;
+        cachedStudentsMap.set(rKey, merged);
+        if (typeof BTEBParser !== 'undefined' && BTEBParser.setStudent) {
+            BTEBParser.setStudent(merged);
+        }
+    }
+
+    function _readAllIndexedDBStudents(db) {
+        return new Promise(function (resolve) {
+            if (!db) {
+                resolve([]);
+                return;
+            }
+            try {
+                var tx = db.transaction(['students'], 'readonly');
+                var store = tx.objectStore('students');
+                if (typeof store.getAll === 'function') {
+                    var allReq = store.getAll();
+                    allReq.onsuccess = function () {
+                        resolve(Array.isArray(allReq.result) ? allReq.result : []);
+                    };
+                    allReq.onerror = function () { resolve([]); };
+                } else {
+                    var rows = [];
+                    var cursorReq = store.openCursor();
+                    cursorReq.onsuccess = function (e) {
+                        var cursor = e.target.result;
+                        if (cursor) {
+                            if (cursor.value) rows.push(cursor.value);
+                            cursor.continue();
+                        } else {
+                            resolve(rows);
+                        }
+                    };
+                    cursorReq.onerror = function () { resolve(rows); };
+                }
+            } catch (e) {
+                resolve([]);
+            }
+        });
+    }
+
     /**
      * Load all saved students from LocalStorage & IndexedDB into memory on boot
      */
-    async function initDB() {
+    function initDB() {
         // 1. Fast load from pre-bundled Project Database
         if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getDatabase) {
             var bundled = BTEBResultsDatabase.getDatabase();
             for (var br in bundled) {
-                cachedStudentsMap.set(br, bundled[br]);
-                if (typeof BTEBParser !== 'undefined' && BTEBParser.setStudent) {
-                    BTEBParser.setStudent(bundled[br]);
+                if (Object.prototype.hasOwnProperty.call(bundled, br)) {
+                    _hydrateStudent(bundled[br]);
                 }
             }
         }
@@ -270,39 +317,22 @@ const BTEBStorage = (function () {
         var compactDb = _read(KEYS.STUDENTS_COMPACT) || {};
         var rolls = Object.keys(compactDb);
         for (var i = 0; i < rolls.length; i++) {
-            var st = compactDb[rolls[i]];
-            if (st && st.roll) {
-                cachedStudentsMap.set(String(st.roll).trim(), st);
-                if (typeof BTEBParser !== 'undefined' && BTEBParser.setStudent) {
-                    BTEBParser.setStudent(st);
+            _hydrateStudent(compactDb[rolls[i]]);
+        }
+
+        // 3. Load from IndexedDB cleanly using single-batch getAll() (fast even for 30k+ students on mobile)
+        initDBPromise = (async function () {
+            var db = await getDB();
+            if (db) {
+                var idbRows = await _readAllIndexedDBStudents(db);
+                for (var j = 0; j < idbRows.length; j++) {
+                    _hydrateStudent(idbRows[j]);
                 }
             }
-        }
+            return true;
+        })();
 
-        // 3. Also sync from IndexedDB if available
-        var db = await getDB();
-        if (db) {
-            try {
-                var tx = db.transaction(['students'], 'readonly');
-                var store = tx.objectStore('students');
-                var cursorReq = store.openCursor();
-                cursorReq.onsuccess = function (e) {
-                    var cursor = e.target.result;
-                    if (cursor) {
-                        var student = cursor.value;
-                        if (student && student.roll) {
-                            cachedStudentsMap.set(String(student.roll).trim(), student);
-                            if (typeof BTEBParser !== 'undefined' && BTEBParser.setStudent) {
-                                BTEBParser.setStudent(student);
-                            }
-                        }
-                        cursor.continue();
-                    }
-                };
-            } catch (e) {}
-        }
-
-        return true;
+        return initDBPromise;
     }
 
     // Auto-init immediately
@@ -387,8 +417,12 @@ const BTEBStorage = (function () {
             }
         }
 
-        // 2. Compact LocalStorage update (Guaranteed to save, zero quota errors)
-        _write(KEYS.STUDENTS_COMPACT, compactDb);
+        // 2. Compact LocalStorage update (Purge stale compact cache if 30k+ PDF records exceed 5MB quota
+        //    so outdated LocalStorage records never shadow fresh IndexedDB records with Institute & EIIN!)
+        var compactWritten = _write(KEYS.STUDENTS_COMPACT, compactDb);
+        if (!compactWritten) {
+            try { localStorage.removeItem(KEYS.STUDENTS_COMPACT); } catch (e) {}
+        }
 
         // 3. Save sheet metadata list
         var allSheets = getAllSheets();
@@ -579,31 +613,75 @@ const BTEBStorage = (function () {
 
     async function getStudentAsync(roll) {
         var st = getStudent(roll);
-        var cleanRoll = (typeof BTEBParser !== 'undefined' && BTEBParser.cleanRollNumber) 
-            ? BTEBParser.cleanRollNumber(roll) 
+        var cleanRoll = (typeof BTEBParser !== 'undefined' && BTEBParser.cleanRollNumber)
+            ? BTEBParser.cleanRollNumber(roll)
             : (typeof BTEBParser !== 'undefined' ? BTEBParser.normalizeDigits(roll) : String(roll).trim());
         if (!cleanRoll) return st;
 
         var db = await getDB();
         if (db) {
             try {
-                var idbStudent = await new Promise(function (resolve) {
-                    var tx = db.transaction(['students'], 'readonly');
-                    var store = tx.objectStore('students');
-                    var req = store.get(cleanRoll);
-                    req.onsuccess = function () {
-                        resolve(req.result || null);
-                    };
-                    req.onerror = function () { resolve(null); };
-                });
+                var readOne = function (key) {
+                    return new Promise(function (resolve) {
+                        var tx = db.transaction(['students'], 'readonly');
+                        var store = tx.objectStore('students');
+                        var req = store.get(key);
+                        req.onsuccess = function () { resolve(req.result || null); };
+                        req.onerror = function () { resolve(null); };
+                    });
+                };
+
+                var idbStudent = await readOne(cleanRoll);
+                if (!idbStudent) {
+                    var stripped = cleanRoll.replace(/^0+/, '');
+                    if (stripped && stripped !== cleanRoll) {
+                        idbStudent = await readOne(stripped);
+                    }
+                }
 
                 if (idbStudent) {
                     st = mergeStudentRecords(st, idbStudent);
                     cachedStudentsMap.set(cleanRoll, st);
+                    if (typeof BTEBParser !== 'undefined' && BTEBParser.setStudent) {
+                        BTEBParser.setStudent(st);
+                    }
                 }
             } catch (e) {}
         }
         return st;
+    }
+
+    async function getAllStudentsAsync() {
+        if (initDBPromise) {
+            try { await initDBPromise; } catch (e) {}
+        }
+        var allMap = {};
+
+        function addIntoMap(rec) {
+            if (!rec || !rec.roll) return;
+            var key = String(rec.roll).trim();
+            allMap[key] = allMap[key] ? mergeStudentRecords(allMap[key], rec) : rec;
+        }
+
+        if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.getDatabase) {
+            var bundled = BTEBResultsDatabase.getDatabase();
+            Object.keys(bundled).forEach(function (k) { addIntoMap(bundled[k]); });
+        }
+
+        var compactDb = _read(KEYS.STUDENTS_COMPACT) || {};
+        Object.keys(compactDb).forEach(function (k) { addIntoMap(compactDb[k]); });
+
+        cachedStudentsMap.forEach(function (val) { addIntoMap(val); });
+
+        var db = await getDB();
+        if (db) {
+            var idbRows = await _readAllIndexedDBStudents(db);
+            for (var i = 0; i < idbRows.length; i++) {
+                addIntoMap(idbRows[i]);
+            }
+        }
+
+        return allMap;
     }
 
     function getTotalStats() {
@@ -634,21 +712,21 @@ const BTEBStorage = (function () {
     }
 
     /**
-     * Export complete result database as a downloadable JSON file
+     * Export complete result database as a downloadable JSON file (includes IndexedDB + LocalStorage + Memory)
      */
-    function exportDatabaseAsJSON() {
-        var compactDb = _read(KEYS.STUDENTS_COMPACT) || {};
+    async function exportDatabaseAsJSON() {
+        var allStudents = await getAllStudentsAsync();
         var sheets = getAllSheets();
         var payload = {
             portal: 'BTEB Result & Education Portal',
-            version: '5.0',
+            version: '5.1',
             exportedAt: new Date().toISOString(),
-            totalStudents: Object.keys(compactDb).length,
+            totalStudents: Object.keys(allStudents).length,
             sheets: sheets,
-            students: compactDb
+            students: allStudents
         };
 
-        var jsonStr = JSON.stringify(payload, null, 2);
+        var jsonStr = JSON.stringify(payload);
         var blob = new Blob([jsonStr], { type: 'application/json' });
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
@@ -659,6 +737,126 @@ const BTEBStorage = (function () {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         return payload;
+    }
+
+    async function exportAsJSON() {
+        var allStudents = await getAllStudentsAsync();
+        var payload = {
+            portal: 'BTEB Result & Education Portal',
+            version: '5.1',
+            exportedAt: new Date().toISOString(),
+            sheets: getAllSheets(),
+            materials: getAllMaterials(),
+            siteSettings: getSiteSettings(),
+            config: getConfig(),
+            students: allStudents
+        };
+        var jsonStr = JSON.stringify(payload);
+        var blob = new Blob([jsonStr], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'bteb_portal_full_backup_' + new Date().toISOString().slice(0, 10) + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        return payload;
+    }
+
+    async function exportAsText() {
+        var allStudents = await getAllStudentsAsync();
+        var rolls = Object.keys(allStudents);
+        var lines = [];
+        for (var i = 0; i < rolls.length; i++) {
+            var st = allStudents[rolls[i]];
+            var inst = st.institute_name ? (st.institute_code ? st.institute_code + ' - ' + st.institute_name : st.institute_name) : '';
+            var gpas = [];
+            for (var s = 1; s <= 8; s++) {
+                if (st['gpa' + s]) gpas.push('gpa' + s + ': ' + st['gpa' + s]);
+            }
+            lines.push((inst ? '[' + inst + '] ' : '') + st.roll + ' (' + gpas.join(', ') + (st.referred && st.referred.length ? ', ref_sub: ' + st.referred.join(', ') : '') + ')');
+        }
+        var blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'bteb_results_backup_' + new Date().toISOString().slice(0, 10) + '.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        return lines.length;
+    }
+
+    function importFromJSON(rawJson) {
+        try {
+            var parsed = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+            if (!parsed || typeof parsed !== 'object') {
+                return { success: false, error: 'Invalid backup JSON format' };
+            }
+
+            if (Array.isArray(parsed.sheets)) {
+                _write(KEYS.SHEETS_META, parsed.sheets);
+            }
+            if (Array.isArray(parsed.materials)) {
+                _write(KEYS.MATERIALS, parsed.materials);
+            }
+            if (parsed.siteSettings && typeof parsed.siteSettings === 'object') {
+                saveSiteSettings(parsed.siteSettings);
+            }
+            if (parsed.config && typeof parsed.config === 'object') {
+                saveConfig(parsed.config);
+            }
+
+            var studentsMap = parsed.students && !Array.isArray(parsed.students) ? parsed.students : null;
+            var importedStudents = [];
+            if (studentsMap) {
+                var compactDb = _read(KEYS.STUDENTS_COMPACT) || {};
+                var rolls = Object.keys(studentsMap);
+                for (var i = 0; i < rolls.length; i++) {
+                    var st = studentsMap[rolls[i]];
+                    if (!st || !st.roll) continue;
+                    var rKey = String(st.roll).trim();
+                    var merged = mergeStudentRecords(cachedStudentsMap.get(rKey) || compactDb[rKey], st);
+                    cachedStudentsMap.set(rKey, merged);
+                    compactDb[rKey] = merged;
+                    importedStudents.push(merged);
+                    if (typeof BTEBParser !== 'undefined' && BTEBParser.setStudent) {
+                        BTEBParser.setStudent(merged);
+                    }
+                    if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.mergeStudent) {
+                        BTEBResultsDatabase.mergeStudent(merged);
+                    }
+                }
+                if (!_write(KEYS.STUDENTS_COMPACT, compactDb)) {
+                    try { localStorage.removeItem(KEYS.STUDENTS_COMPACT); } catch (e) {}
+                }
+
+                // Persist imported students asynchronously into IndexedDB
+                if (importedStudents.length > 0) {
+                    getDB().then(function (db) {
+                        if (!db) return;
+                        try {
+                            var tx = db.transaction(['students'], 'readwrite');
+                            var store = tx.objectStore('students');
+                            for (var j = 0; j < importedStudents.length; j++) {
+                                store.put(importedStudents[j]);
+                            }
+                        } catch (e) {}
+                    });
+                }
+            }
+
+            return {
+                success: true,
+                sheetCount: Array.isArray(parsed.sheets) ? parsed.sheets.length : 0,
+                materialCount: Array.isArray(parsed.materials) ? parsed.materials.length : 0,
+                studentCount: importedStudents.length
+            };
+        } catch (err) {
+            return { success: false, error: err && err.message ? err.message : 'Parse error' };
+        }
     }
 
     // ─── Individual Student Operations ───
@@ -689,7 +887,17 @@ const BTEBStorage = (function () {
         cachedStudentsMap.set(roll, student);
         var compactDb = _read(KEYS.STUDENTS_COMPACT) || {};
         compactDb[roll] = student;
-        _write(KEYS.STUDENTS_COMPACT, compactDb);
+        if (!_write(KEYS.STUDENTS_COMPACT, compactDb)) {
+            try { localStorage.removeItem(KEYS.STUDENTS_COMPACT); } catch (e) {}
+        }
+
+        getDB().then(function (db) {
+            if (!db) return;
+            try {
+                var tx = db.transaction(['students'], 'readwrite');
+                tx.objectStore('students').put(student);
+            } catch (e) {}
+        });
 
         if (typeof BTEBParser !== 'undefined' && BTEBParser.setStudent) {
             BTEBParser.setStudent(student);
@@ -702,8 +910,19 @@ const BTEBStorage = (function () {
         var cleanRoll = String(roll).trim();
         cachedStudentsMap.delete(cleanRoll);
         var compactDb = _read(KEYS.STUDENTS_COMPACT) || {};
-        delete compactDb[cleanRoll];
-        _write(KEYS.STUDENTS_COMPACT, compactDb);
+        if (Object.prototype.hasOwnProperty.call(compactDb, cleanRoll)) {
+            delete compactDb[cleanRoll];
+            if (!_write(KEYS.STUDENTS_COMPACT, compactDb)) {
+                try { localStorage.removeItem(KEYS.STUDENTS_COMPACT); } catch (e) {}
+            }
+        }
+        getDB().then(function (db) {
+            if (!db) return;
+            try {
+                var tx = db.transaction(['students'], 'readwrite');
+                tx.objectStore('students').delete(cleanRoll);
+            } catch (e) {}
+        });
         return { success: true };
     }
 
@@ -825,14 +1044,18 @@ const BTEBStorage = (function () {
         _write(KEYS.MATERIALS, materials);
     }
 
-    function exportResultsDatabaseJs() {
+    async function exportResultsDatabaseJs() {
+        var allStudents = await getAllStudentsAsync();
         if (typeof BTEBResultsDatabase !== 'undefined' && BTEBResultsDatabase.exportAsJsFile) {
+            var rolls = Object.keys(allStudents);
+            for (var i = 0; i < rolls.length; i++) {
+                BTEBResultsDatabase.mergeStudent(allStudents[rolls[i]]);
+            }
             BTEBResultsDatabase.exportAsJsFile();
             return;
         }
-        var compactDb = _read(KEYS.STUDENTS_COMPACT) || {};
         var content = 'const BTEBResultsDatabase = (function () {\n    \'use strict\';\n    const database = '
-            + JSON.stringify(compactDb, null, 4) + ';\n    return {\n        getStudent: function (r) { return database[r] || null; },\n        getCount: function () { return Object.keys(database).length; }\n    };\n})();\n';
+            + JSON.stringify(allStudents, null, 4) + ';\n    return {\n        getStudent: function (r) { return database[r] || null; },\n        getCount: function () { return Object.keys(database).length; }\n    };\n})();\n';
         var blob = new Blob([content], { type: 'application/javascript;charset=utf-8' });
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
@@ -854,9 +1077,13 @@ const BTEBStorage = (function () {
         getCombinedRawText: getCombinedRawText,
         getStudent: getStudent,
         getStudentAsync: getStudentAsync,
+        getAllStudentsAsync: getAllStudentsAsync,
         getTotalStats: getTotalStats,
         exportDatabaseAsJSON: exportDatabaseAsJSON,
         exportResultsDatabaseJs: exportResultsDatabaseJs,
+        exportAsJSON: exportAsJSON,
+        exportAsText: exportAsText,
+        importFromJSON: importFromJSON,
         mergeStudentRecords: mergeStudentRecords,
         addOrUpdateStudent: addOrUpdateStudent,
         deleteStudent: deleteStudent,

@@ -53,7 +53,10 @@ const BTEBParser = (function () {
      */
     function cleanRawPdfText(text) {
         if (!text) return '';
-        return text.replace(/\|/g, ' ');
+        return String(text)
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            .replace(/\u00A0/g, ' ')
+            .replace(/\|/g, ' ');
     }
 
     /**
@@ -114,8 +117,11 @@ const BTEBParser = (function () {
      */
     function parseInstituteHeader(line) {
         if (!line) return null;
-        const trimmed = normalizeDigits(String(line)).replace(/\s+/g, ' ').trim();
-        const match = trimmed.match(/^(\d{5,6})\s*[-–—]\s*(.+)$/);
+        const cleanedLine = String(line)
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            .replace(/\u00A0/g, ' ');
+        const trimmed = normalizeDigits(cleanedLine).replace(/\s+/g, ' ').trim();
+        const match = trimmed.match(/^(?:(?:institute|eiin(?:\s*code)?)\s*[:\-]?\s*)?(\d{5,6})\s*[-\u2010-\u2015\u2212]\s*(.+)$/i);
         if (!match) return null;
 
         const code = match[1].trim();
@@ -157,7 +163,35 @@ const BTEBParser = (function () {
             if (lineEnd === -1) lineEnd = len;
 
             const lineStr = text.slice(lineStart, lineEnd);
-            const parsedHeader = parseInstituteHeader(lineStr);
+            let parsedHeader = parseInstituteHeader(lineStr);
+
+            // Handle mobile PDF copy/extract wrapping "74042 -" onto next line "Chakria Polytechnic..."
+            if (!parsedHeader && lineEnd < len) {
+                const cleanCur = normalizeDigits(lineStr.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, ' ')).trim();
+                const partialMatch = cleanCur.match(/^(?:(?:institute|eiin(?:\s*code)?)\s*[:\-]?\s*)?(\d{5,6})\s*([-\u2010-\u2015\u2212])?$/i);
+                if (partialMatch) {
+                    let nextStart = lineEnd + 1;
+                    while (nextStart < len) {
+                        let nextEnd = text.indexOf('\n', nextStart);
+                        if (nextEnd === -1) nextEnd = len;
+                        const nextStr = text.slice(nextStart, nextEnd).trim();
+                        if (nextStr) {
+                            const hasLeadingDash = !!partialMatch[2] || /^[-\u2010-\u2015\u2212]/.test(nextStr);
+                            if (hasLeadingDash && !/[\(\{]|gpa|\b[1-4]\.\d{2}\b|\d{4,6}\s*\(/i.test(nextStr)) {
+                                const combined = partialMatch[1] + ' - ' + nextStr.replace(/^[-\u2010-\u2015\u2212]\s*/, '');
+                                const mergedHeader = parseInstituteHeader(combined);
+                                if (mergedHeader) {
+                                    parsedHeader = mergedHeader;
+                                }
+                            }
+                            break;
+                        }
+                        if (nextEnd >= len) break;
+                        nextStart = nextEnd + 1;
+                    }
+                }
+            }
+
             if (parsedHeader) {
                 activeCode = parsedHeader.institute_code;
                 activeName = parsedHeader.institute_name;

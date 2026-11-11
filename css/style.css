@@ -579,6 +579,9 @@ body {
 .info-item {
     display: flex;
     flex-direction: column;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .info-label {
@@ -591,6 +594,8 @@ body {
     font-size: 0.95rem;
     font-weight: 600;
     color: var(--secondary);
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 /* Section Title */

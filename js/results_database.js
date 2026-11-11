@@ -212,7 +212,7 @@ const BTEBResultsDatabase = (function () {
             + '        return (stripped && database[stripped]) ? database[stripped] : null;\n'
             + '    }\n\n'
             + '    function setStudent(st) { if (st && st.roll) { var r = cleanRoll(st.roll); if (r) database[r] = st; } }\n'
-            + '    function mergeStudent(st) { return BTEBResultsDatabase.setStudent(st); }\n'
+            + '    function mergeStudent(st) { setStudent(st); return getStudent(st && st.roll); }\n'
             + '    function getAllRolls() { return Object.keys(database); }\n'
             + '    function getCount() { return Object.keys(database).length; }\n'
             + '    function getDatabase() { return database; }\n'

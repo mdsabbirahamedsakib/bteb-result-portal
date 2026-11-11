@@ -252,12 +252,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
         var t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
 
-        // 1. Check Unified BTEBStorage (Memory + Compact LocalStorage + IndexedDB + Database with PDF Priority)
+        // 1. Check Unified BTEBStorage (Always consult Async IndexedDB + LocalStorage + Memory so stale LocalStorage never hides Institute/EIIN)
         var student = null;
         if (typeof BTEBStorage !== 'undefined') {
-            student = BTEBStorage.getStudent(roll);
-            if (!student && BTEBStorage.getStudentAsync) {
+            if (BTEBStorage.getStudentAsync) {
                 student = await BTEBStorage.getStudentAsync(roll);
+            } else {
+                student = BTEBStorage.getStudent(roll);
             }
         }
 
