@@ -47,11 +47,15 @@ document.addEventListener('DOMContentLoaded', function () {
     // ─── Step 7: Init Admin Auth Status ───
     checkAuthStatus();
 
-    // ─── Init Tab 1 ───
+    // ─── Init Tab 1 (Stats & visitor data only load when Admin is authenticated) ───
     loadServerToggleState();
-    renderGlobalStats();
-    renderSavedSheets();
-    checkDatabaseInstituteHealth();
+    if (BTEBStorage.isAdminLoggedIn()) {
+        renderGlobalStats();
+        renderSavedSheets();
+        checkDatabaseInstituteHealth();
+    } else if (typeof window.clearVisitorDashboardDOM === 'function') {
+        window.clearVisitorDashboardDOM();
+    }
 
     async function checkDatabaseInstituteHealth() {
         if (typeof BTEBStorage === 'undefined' || !BTEBStorage.getDatabaseHealthAsync) return;
@@ -498,8 +502,15 @@ document.addEventListener('DOMContentLoaded', function () {
             '<div class="preview-stat preview-stat-danger"><span class="stat-icon">❌</span> ড্রপ: <strong>' + dropped.toLocaleString() + '</strong></div>';
     }
 
+    var overviewStatsFetchToken = 0;
+
     function renderGlobalStats() {
         if (!globalStatsContainer) return;
+        if (typeof BTEBStorage === 'undefined' || !BTEBStorage.isAdminLoggedIn()) {
+            globalStatsContainer.innerHTML = '';
+            return;
+        }
+
         var stats = BTEBStorage.getTotalStats();
         var passRate = stats.totalStudents > 0 ? ((stats.totalPassed / stats.totalStudents) * 100).toFixed(1) : '0.0';
         var vStats = (typeof BTEBVisitor !== 'undefined') ? BTEBVisitor.getStats() : null;
@@ -532,14 +543,33 @@ document.addEventListener('DOMContentLoaded', function () {
             (vStats ? (
                 '<div class="dash-stat-card" style="cursor:pointer;" onclick="switchAdminTab(\'tab-visitors\')" title="ভিজিটর লগ দেখুন">' +
                     '<div class="dash-stat-icon" style="background:#f5f3ff;color:#7c3aed">👁️</div>' +
-                    '<div class="dash-stat-body"><span class="dash-stat-num">' + Number(vStats.totalVisits || 0).toLocaleString() + '</span><span class="dash-stat-label">মোট ভিজিটর</span></div>' +
+                    '<div class="dash-stat-body"><span class="dash-stat-num" id="overviewTotalVisitorsNum">' + Number(vStats.totalVisits || 0).toLocaleString() + '</span><span class="dash-stat-label">মোট ভিজিটর</span></div>' +
                 '</div>' +
                 '<div class="dash-stat-card" style="cursor:pointer;" onclick="switchAdminTab(\'tab-visitors\')" title="আজকের ভিজিটর লগ দেখুন">' +
                     '<div class="dash-stat-icon" style="background:#ecfeff;color:#0891b2">📅</div>' +
-                    '<div class="dash-stat-body"><span class="dash-stat-num">' + Number(vStats.todayVisits || 0).toLocaleString() + '</span><span class="dash-stat-label">আজকের ভিজিটর</span></div>' +
+                    '<div class="dash-stat-body"><span class="dash-stat-num" id="overviewTodayVisitorsNum">' + Number(vStats.todayVisits || 0).toLocaleString() + '</span><span class="dash-stat-label">আজকের ভিজিটর</span></div>' +
                 '</div>'
             ) : '');
+
+        if (typeof BTEBVisitor !== 'undefined' && BTEBVisitor.getStatsAsync) {
+            var myToken = ++overviewStatsFetchToken;
+            BTEBVisitor.getStatsAsync().then(function (liveStats) {
+                if (myToken !== overviewStatsFetchToken) return;
+                if (!BTEBStorage || !BTEBStorage.isAdminLoggedIn() || !liveStats) return;
+                var totalEl = document.getElementById('overviewTotalVisitorsNum');
+                var todayEl = document.getElementById('overviewTodayVisitorsNum');
+                if (totalEl) totalEl.textContent = Number(liveStats.totalVisits || 0).toLocaleString();
+                if (todayEl) todayEl.textContent = Number(liveStats.todayVisits || 0).toLocaleString();
+            }).catch(function () {});
+        }
     }
+
+    window.refreshAdminOverviewOnLogin = function () {
+        loadServerToggleState();
+        renderGlobalStats();
+        renderSavedSheets();
+        checkDatabaseInstituteHealth();
+    };
 
     function renderSavedSheets() {
         if (!savedSheetsContainer) return;
@@ -1009,8 +1039,18 @@ function checkAuthStatus() {
     if (BTEBStorage.isAdminLoggedIn()) {
         document.body.classList.remove('admin-locked');
         if (overlay) overlay.classList.add('hidden');
+        if (typeof window.refreshAdminOverviewOnLogin === 'function') {
+            window.refreshAdminOverviewOnLogin();
+        }
+        var visitorsTabEl = document.getElementById('tab-visitors');
+        if (visitorsTabEl && !visitorsTabEl.classList.contains('hidden') && typeof window.renderVisitorDashboard === 'function') {
+            window.renderVisitorDashboard();
+        }
     } else {
         document.body.classList.add('admin-locked');
+        if (typeof window.clearVisitorDashboardDOM === 'function') {
+            window.clearVisitorDashboardDOM();
+        }
         if (overlay) {
             overlay.classList.remove('hidden');
             var loginUserInput = document.getElementById('loginUsername');
@@ -1928,6 +1968,20 @@ if (dropZoneEl) {
             .replace(/'/g, '&#39;');
     }
 
+    function clearVisitorDomElements() {
+        var gStats = document.getElementById('globalStatsContainer');
+        if (gStats && (!BTEBStorage || !BTEBStorage.isAdminLoggedIn())) gStats.innerHTML = '';
+        var vGrid = document.getElementById('visitorStatsGrid');
+        if (vGrid) vGrid.innerHTML = '';
+        var dBody = document.getElementById('visitorDailyTableBody');
+        if (dBody) dBody.innerHTML = '';
+        var lBody = document.getElementById('visitorLogsTableBody');
+        if (lBody) lBody.innerHTML = '';
+        currentRenderedVisitorLogs = [];
+    }
+
+    window.clearVisitorDashboardDOM = clearVisitorDomElements;
+
     function wireVisitorEventsOnce() {
         var dateFilter = document.getElementById('visitorDateFilter');
         var customDate = document.getElementById('visitorCustomDate');
@@ -1974,7 +2028,7 @@ if (dropZoneEl) {
         if (refreshBtn && !refreshBtn._visitorWired) {
             refreshBtn._visitorWired = true;
             refreshBtn.addEventListener('click', function () {
-                window.renderVisitorDashboard();
+                window.renderVisitorDashboard(true);
                 if (window.showToast) window.showToast('🔄 ভিজিটর লগ তালিকা রিফ্রেশ করা হয়েছে!', 'info');
             });
         }
@@ -2030,12 +2084,12 @@ if (dropZoneEl) {
                     adminKey: adminKey ? adminKey.value : ''
                 });
 
-                await window.renderVisitorDashboard();
+                await window.renderVisitorDashboard(true);
                 if (window.showToast) {
                     window.showToast(
                         saved.enabled
                             ? '💾 PHP/MySQL ব্যাকএন্ড সেটিংস সংরক্ষিত ও যাচাই করা হয়েছে!'
-                            : '💾 Static (LocalStorage) মোড সক্রিয় করা হয়েছে!',
+                            : '💾 Global Cloud Sync (GitHub Pages Ready) মোড সক্রিয় করা হয়েছে!',
                         'success'
                     );
                 }
@@ -2045,16 +2099,15 @@ if (dropZoneEl) {
         if (typeof window !== 'undefined' && !window._adminVisitorRealtimeWired) {
             window._adminVisitorRealtimeWired = true;
             window.addEventListener('bteb-visitor-updated', function () {
+                if (typeof BTEBStorage === 'undefined' || !BTEBStorage.isAdminLoggedIn()) return;
                 // Refresh global overview cards on Tab 1
-                var gStatsEl = document.getElementById('globalStatsContainer');
-                if (gStatsEl && typeof BTEBStorage !== 'undefined' && typeof BTEBVisitor !== 'undefined') {
-                    var visitorCards = gStatsEl.querySelectorAll('.dash-stat-card');
-                    var vStats = BTEBVisitor.getStats();
-                    if (visitorCards.length >= 8) {
-                        var totalNum = visitorCards[6].querySelector('.dash-stat-num');
-                        var todayNum = visitorCards[7].querySelector('.dash-stat-num');
-                        if (totalNum) totalNum.textContent = Number(vStats.totalVisits || 0).toLocaleString();
-                        if (todayNum) todayNum.textContent = Number(vStats.todayVisits || 0).toLocaleString();
+                if (typeof BTEBVisitor !== 'undefined') {
+                    var totalEl = document.getElementById('overviewTotalVisitorsNum');
+                    var todayEl = document.getElementById('overviewTodayVisitorsNum');
+                    if (totalEl || todayEl) {
+                        var vStats = BTEBVisitor.getStats();
+                        if (totalEl) totalEl.textContent = Number(vStats.totalVisits || 0).toLocaleString();
+                        if (todayEl) todayEl.textContent = Number(vStats.todayVisits || 0).toLocaleString();
                     }
                 }
                 var tabEl = document.getElementById('tab-visitors');
@@ -2065,8 +2118,11 @@ if (dropZoneEl) {
         }
     }
 
-    window.renderVisitorDashboard = async function () {
-        if (typeof BTEBVisitor === 'undefined') return;
+    window.renderVisitorDashboard = async function (forceRefresh) {
+        if (typeof BTEBVisitor === 'undefined' || typeof BTEBStorage === 'undefined' || !BTEBStorage.isAdminLoggedIn()) {
+            clearVisitorDomElements();
+            return;
+        }
         wireVisitorEventsOnce();
 
         var apiCfg = BTEBVisitor.getApiConfig();
@@ -2085,13 +2141,24 @@ if (dropZoneEl) {
             dateMode: dateFilter ? dateFilter.value : 'all',
             specificDate: customDate ? customDate.value : '',
             query: searchInput ? searchInput.value : '',
-            limit: 200
+            limit: 200,
+            forceRefresh: Boolean(forceRefresh)
         };
 
         var result = await BTEBVisitor.getLogsAsync(filter);
+        if (!BTEBStorage.isAdminLoggedIn()) {
+            clearVisitorDomElements();
+            return;
+        }
         var stats = result.stats || BTEBVisitor.getStats();
         var logs = Array.isArray(result.logs) ? result.logs : [];
         currentRenderedVisitorLogs = logs;
+
+        // Also keep Tab 1 overview visitor counters synchronized when viewing dashboard
+        var ovTotalEl = document.getElementById('overviewTotalVisitorsNum');
+        var ovTodayEl = document.getElementById('overviewTodayVisitorsNum');
+        if (ovTotalEl) ovTotalEl.textContent = Number(stats.totalVisits || 0).toLocaleString();
+        if (ovTodayEl) ovTodayEl.textContent = Number(stats.todayVisits || 0).toLocaleString();
 
         var statsGrid = document.getElementById('visitorStatsGrid');
         if (statsGrid) {
@@ -2121,11 +2188,16 @@ if (dropZoneEl) {
                 modeBadge.style.background = 'rgba(37, 99, 235, 0.12)';
                 modeBadge.style.color = '#2563eb';
                 modeBadge.style.borderColor = 'rgba(37, 99, 235, 0.3)';
-            } else {
-                modeBadge.textContent = '🌐 Static Mode (GitHub Pages Ready)';
+            } else if (result.mode === 'cloud') {
+                modeBadge.textContent = '☁️ Global Cloud Sync (All Devices)';
                 modeBadge.style.background = 'rgba(16, 185, 129, 0.12)';
                 modeBadge.style.color = '#059669';
                 modeBadge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+            } else {
+                modeBadge.textContent = '📴 অফলাইন IndexedDB ব্যাকআপ';
+                modeBadge.style.background = 'rgba(245, 158, 11, 0.12)';
+                modeBadge.style.color = '#b45309';
+                modeBadge.style.borderColor = 'rgba(245, 158, 11, 0.3)';
             }
         }
 
@@ -2179,10 +2251,13 @@ if (dropZoneEl) {
         if (!tbody) return;
 
         if (logs.length === 0) {
+            var emptyLogsMsg = (result.mode === 'cloud' && Number(stats.totalVisits || 0) > 0)
+                ? ('☁️ গ্লোবাল ক্লাউডে সকল ডিভাইস মিলিয়ে ' + Number(stats.totalVisits || 0).toLocaleString() + 'টি ইউনিক ভিজিট রেকর্ড রয়েছে। এই ডিভাইস থেকে স্টুডেন্ট পেজ ভিজিট করলে অথবা PHP/MySQL সক্রিয় করলে এখানে লগ তালিকা দেখাবে।')
+                : 'কোনো ভিজিটর লগ পাওয়া যায়নি। স্টুডেন্ট পেজ (<code>index.html</code>) ভিজিট করলে এখানে স্বয়ংক্রিয়ভাবে লগ সংরক্ষিত হবে।';
             tbody.innerHTML =
                 '<tr>' +
                     '<td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted);">' +
-                        'কোনো ভিজিটর লগ পাওয়া যায়নি। স্টুডেন্ট পেজ (<code>index.html</code>) ভিজিট করলে এখানে স্বয়ংক্রিয়ভাবে লগ সংরক্ষিত হবে।' +
+                        emptyLogsMsg +
                     '</td>' +
                 '</tr>';
             return;

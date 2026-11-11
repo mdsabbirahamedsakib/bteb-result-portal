@@ -8,8 +8,8 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <link rel="stylesheet" href="css/style.css?v=20261111_2">
-    <link rel="stylesheet" href="css/print.css?v=20261111_2" media="print">
+    <link rel="stylesheet" href="css/style.css?v=20261111_3">
+    <link rel="stylesheet" href="css/print.css?v=20261111_3" media="print">
     <!-- Google Fonts for Bengali -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -227,23 +227,22 @@
             <p style="margin-top:6px;font-size:0.8rem;color:#94a3b8;">
                 ডিপ্লোমা ইন ইঞ্জিনিয়ারিং শিক্ষার্থীদের সহায়তায় সার্বিক কারিগরি তথ্য ও রিসোর্স।
             </p>
-            <div class="visitor-counter-bar" id="visitorFooterCounter"></div>
         </div>
     </footer>
 
     <!-- Scripts -->
-    <script src="js/parser.js?v=20261111_2"></script>
-    <script src="js/data.js?v=20261111_2"></script>
-    <script src="js/results_database.js?v=20261111_2"></script>
-    <script src="js/storage.js?v=20261111_2"></script>
-    <script src="js/visitor.js?v=20261111_2"></script>
-    <script src="js/i18n.js?v=20261111_2"></script>
+    <script src="js/parser.js?v=20261111_3"></script>
+    <script src="js/data.js?v=20261111_3"></script>
+    <script src="js/results_database.js?v=20261111_3"></script>
+    <script src="js/storage.js?v=20261111_3"></script>
+    <script src="js/visitor.js?v=20261111_3"></script>
+    <script src="js/i18n.js?v=20261111_3"></script>
     <script>
         let currentCategory = 'all';
 
         document.addEventListener('DOMContentLoaded', function () {
             if (typeof BTEBVisitor !== 'undefined') {
-                BTEBVisitor.initFooterCounter('materials.html');
+                BTEBVisitor.trackPageVisit('materials.html');
             }
             // Check query param for category (e.g., ?cat=book)
             const urlParams = new URLSearchParams(window.location.search);

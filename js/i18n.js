@@ -421,6 +421,9 @@ const BTEBLang = (function () {
         'গিটহব রিপোজিটরিতে কোড পুশ করে': 'Push the code to your GitHub repository and select',
         'চালু (ON)': 'ON',
         'চালু করলে ভিজিট তথ্য সরাসরি PHP API-তে পাঠানো হবে (ব্যাকএন্ড না থাকলে স্বয়ংক্রিয় Static ব্যাকআপ কাজ করবে)।': 'When enabled, visit data is sent directly to the PHP API (auto-falls back to static storage if unavailable).',
+        'চালু করলে ভিজিট তথ্য সরাসরি PHP API-তে পাঠানো হবে (ব্যাকএন্ড না থাকলে স্বয়ংক্রিয় Cloud Sync কাজ করবে)।': 'When enabled, visit data is sent directly to the PHP API (auto-falls back to Cloud Sync if unavailable).',
+        'রাখুন — তখন স্বয়ংক্রিয়ভাবে': 'on GitHub Pages or static hosting — visits automatically sync via',
+        'এর মাধ্যমে ফোন, ল্যাপটপ ও সকল ডিভাইস থেকে একই ইউনিক ভিজিটর সংখ্যা রিয়েল-টাইম সিঙ্ক হবে। আপনি যদি cPanel/PHP+MySQL সার্ভারে হোস্ট করেন এবং প্রতিটি ভিজিটরের আসল IP ঠিকানা MySQL-এর': 'for real-time identical unique visitor counts across Phone, Laptop, and all devices. If hosting on cPanel/PHP+MySQL and you want raw visitor IPs saved in the MySQL',
         'চালু রাখলে বোর্ড ফাইনাল পরীক্ষার চূড়ান্ত সুপার সাজেশনগুলো দৃশ্যমান হবে।': 'Keep ON to display final super suggestions for board exams.',
         'চালু রাখলে শিক্ষার্থীরা অধ্যায়ভিত্তিক হ্যান্ডনোটস ও লেকচার শিট পড়তে পারবে।': 'Keep ON to allow students to read chapter-wise handnotes and lecture sheets.',
         'চালু রাখলে শিক্ষার্থীরা রেজাল্ট খুঁজতে পারবে। বন্ধ রাখলে শিক্ষার্থী পেজে মেইনটেন্যান্স ব্যানার দেখাবে।': 'Keep ON to let students search results. Turn OFF to show a maintenance banner on the student page.',
@@ -588,7 +591,10 @@ const BTEBLang = (function () {
         '🗑️ সকল ভিজিটর লগ সফলভাবে মুছে ফেলা হয়েছে!': '🗑️ All visitor logs cleared successfully!',
         '💾 PHP/MySQL ব্যাকএন্ড সেটিংস সংরক্ষিত ও যাচাই করা হয়েছে!': '💾 PHP/MySQL backend settings saved & verified!',
         '💾 Static (LocalStorage) মোড সক্রিয় করা হয়েছে!': '💾 Static (LocalStorage) mode enabled!',
-        'ব্যাকএন্ড সার্ভারের সাথে সংযোগ করা যায়নি (Static মোড দেখানো হচ্ছে)।': 'Unable to connect to backend server (showing Static mode).'
+        '💾 Global Cloud Sync (GitHub Pages Ready) মোড সক্রিয় করা হয়েছে!': '💾 Global Cloud Sync (GitHub Pages Ready) mode enabled!',
+        '📴 অফলাইন IndexedDB ব্যাকআপ': '📴 Offline IndexedDB Backup',
+        'ব্যাকএন্ড সার্ভারের সাথে সংযোগ করা যায়নি (Static মোড দেখানো হচ্ছে)।': 'Unable to connect to backend server (showing Static mode).',
+        'ক্লাউড সার্ভারে সংযোগ করা যায়নি — অফলাইন IndexedDB ব্যাকআপ দেখানো হচ্ছে।': 'Unable to reach cloud server — showing offline IndexedDB backup.'
     };
 
     const BN_DIGITS = { '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4', '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9' };
@@ -732,6 +738,9 @@ const BTEBLang = (function () {
         }],
         [/^🔒\s*অতিরিক্ত\s+ভুল\s+চেষ্টার\s+কারণে\s+লগইন\s+([০-৯\d]+)\s+সেকেন্ডের\s+জন্য\s+লক\s+রয়েছে!$/, function (_, s) { return '🔒 Login locked for ' + toAsciiDigits(s) + ' seconds due to repeated invalid attempts!'; }],
         [/^⚠️\s*ব্যাকএন্ড\s+বার্তা:\s*(.+)$/, function (_, msg) { return '⚠️ Backend Notice: ' + translateSubTerm(msg); }],
+        [/^☁️\s*গ্লোবাল\s+ক্লাউডে\s+সকল\s+ডিভাইস\s+মিলিয়ে\s+([০-৯\d,]+)টি\s+ইউনিক\s+ভিজিট\s+রেকর্ড\s+রয়েছে।\s*এই\s+ডিভাইস\s+থেকে\s+স্টুডেন্ট\s+পেজ\s+ভিজিট\s+করলে\s+অথবা\s+PHP\/MySQL\s+সক্রিয়\s+করলে\s+এখানে\s+লগ\s+তালিকা\s+দেখাবে।$/, function (_, n) {
+            return '☁️ ' + toAsciiDigits(n) + ' unique visit(s) are recorded in Global Cloud across all devices. Student-page visits from this device (or centralized PHP/MySQL logs) will appear here.';
+        }],
         [/^([১-৮\d]+(?:ম|য়|য়|র্থ|ষ্ঠ)?)\s+পর্ব$/, function (_, sem) { return toOrdinalSem(sem) + ' Semester'; }],
         [/^([১-৮\d]+(?:ম|য়|য়|র্থ|ষ্ঠ)?|all)\s+সেমিস্টার$/, function (_, sem) {
             return String(sem).toLowerCase() === 'all' ? 'All Semesters' : toOrdinalSem(sem) + ' Semester';

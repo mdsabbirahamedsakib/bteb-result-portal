@@ -7,6 +7,18 @@
  * Supports both PDO ($pdo) and MySQLi ($conn) using prepared statements.
  */
 
+function btebIsBotUserAgent(?string $ua = null): bool {
+    $agent = $ua !== null ? $ua : (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
+    $trimmed = trim($agent);
+    if ($trimmed === '') {
+        return true;
+    }
+    return preg_match(
+        '/bot|crawl|spider|slurp|mediapartners|adsbot|bingpreview|duckduckbot|yandex|baiduspider|sogou|exabot|facebot|facebookexternalhit|ia_archiver|twitterbot|whatsapp|telegrambot|discordbot|linkedinbot|pinterest|applebot|semrush|ahrefs|mj12bot|dotbot|petalbot|bytespider|gptbot|claudebot|anthropic|perplexitybot|ccbot|headlesschrome|phantomjs|slimerjs|playwright|puppeteer|selenium|webdriver|cypress|lighthouse|pagespeed|gtmetrix|pingdom|uptimerobot|statuscake|curl\/|wget\/|python-requests|python-urllib|aiohttp|httpx|go-http-client|java\/|okhttp|axios|node-fetch|undici|postmanruntime|insomnia/i',
+        $trimmed
+    ) === 1;
+}
+
 function btebResolveClientIp(bool $trustProxy = false): string {
     $candidates = [];
     if ($trustProxy && !empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
@@ -32,11 +44,21 @@ function btebResolveClientIp(bool $trustProxy = false): string {
 
 /**
  * Check if IP has visited on $visitDate; if not, insert into `visitor_logs`.
+ * Blocks automated bots/crawlers/headless clients cleanly before writing.
  *
  * @param PDO|mysqli $db
- * @return array{recorded:bool, duplicate:bool, id:int|null}
+ * @return array{recorded:bool, duplicate:bool, botBlocked?:bool, id:int|null}
  */
 function btebTrackVisitorVisit($db, string $visitDate, bool $trustProxy = false): array {
+    if (btebIsBotUserAgent()) {
+        return [
+            'recorded'   => false,
+            'duplicate'  => false,
+            'botBlocked' => true,
+            'id'         => null
+        ];
+    }
+
     $userIp = btebResolveClientIp($trustProxy);
 
     if ($db instanceof PDO) {

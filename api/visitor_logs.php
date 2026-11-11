@@ -3,8 +3,8 @@
  * BTEB Portal - Optional Visitor Logs REST API (api/visitor_logs.php)
  *
  * Works with MySQL table `visitor_logs` (database/visitor_logs.sql):
- *   - POST ?action=record  : Records 1 visit per IP per date & returns aggregate counts
- *   - GET  ?action=stats   : Returns aggregate visitor counts (publicly safe, no raw IP list)
+ *   - POST ?action=record  : Records 1 genuine visit per IP per date (no stats leaked to public)
+ *   - GET  ?action=stats   : Returns aggregate visitor counts (requires configured admin_api_key)
  *   - GET  ?action=logs    : Returns paginated visitor_logs rows (requires configured admin_api_key)
  *   - POST ?action=clear   : Truncates visitor_logs table (requires configured admin_api_key)
  */
@@ -132,12 +132,13 @@ if ($action === 'record' && $method === 'POST') {
         'mode'       => 'mysql',
         'recorded'   => $track['recorded'],
         'duplicate'  => $track['duplicate'],
-        'id'         => $track['id'],
-        'stats'      => fetchVisitorStats($pdo, $todayDate)
+        'botBlocked' => !empty($track['botBlocked']),
+        'id'         => $track['id']
     ]);
 }
 
 if ($action === 'stats' && $method === 'GET') {
+    verifyAdminAuthorization($config);
     sendJson([
         'ok'         => true,
         'configured' => true,
