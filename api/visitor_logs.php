@@ -183,11 +183,24 @@ if ($action === 'logs' && $method === 'GET') {
     $stmt->execute();
 
     sendJson([
-        'ok'         => true,
-        'configured' => true,
-        'mode'       => 'mysql',
-        'stats'      => fetchVisitorStats($pdo, $todayDate),
-        'logs'       => $stmt->fetchAll()
+        'ok'           => true,
+        'configured'   => true,
+        'mode'         => 'mysql',
+        'stats'        => fetchVisitorStats($pdo, $todayDate),
+        'dailySummary' => btebGetDailyVisitorSummary($pdo, 30),
+        'logs'         => $stmt->fetchAll()
+    ]);
+}
+
+if ($action === 'daily' && $method === 'GET') {
+    verifyAdminAuthorization($config);
+    $days = isset($_GET['limit']) ? (int)$_GET['limit'] : 30;
+    sendJson([
+        'ok'           => true,
+        'configured'   => true,
+        'mode'         => 'mysql',
+        'stats'        => fetchVisitorStats($pdo, $todayDate),
+        'dailySummary' => btebGetDailyVisitorSummary($pdo, $days)
     ]);
 }
 

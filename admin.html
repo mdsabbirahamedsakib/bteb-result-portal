@@ -1235,6 +1235,33 @@
             <!-- Visitor Summary Cards -->
             <div class="dash-stats-grid" id="visitorStatsGrid"></div>
 
+            <!-- Last 30 Days Daily Visitor Summary Panel -->
+            <div class="admin-section visitor-stats-panel">
+                <div class="admin-section-header" style="flex-wrap:wrap;gap:10px;">
+                    <h3 class="admin-section-title">📅 তারিখ অনুযায়ী ভিজিটর সংখ্যা (শেষ ৩০ দিন)</h3>
+                    <span class="toolbar-badge" id="visitorDailyDaysBadge">০ দিন</span>
+                </div>
+                <div class="admin-section-body">
+                    <div class="visitor-table-wrap">
+                        <table class="visitor-logs-table" id="visitorDailyTable">
+                            <thead>
+                                <tr>
+                                    <th>তারিখ (Date)</th>
+                                    <th>মোট ভিজিটর (Total Visitors)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="visitorDailyTableBody">
+                                <tr>
+                                    <td colspan="2" style="text-align:center;padding:24px;color:var(--text-muted);">
+                                        কোনো ভিজিটর ডেটা পাওয়া যায়নি।
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- Visitor Logs Table Section -->
             <div class="admin-section">
                 <div class="admin-section-header" style="flex-wrap:wrap;gap:10px;">

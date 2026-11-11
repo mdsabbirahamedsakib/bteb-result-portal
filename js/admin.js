@@ -2098,6 +2098,37 @@ if (dropZoneEl) {
             }
         }
 
+        // Render Last 30 Days Daily Summary Table
+        var dailySummary = Array.isArray(result.dailySummary)
+            ? result.dailySummary
+            : (BTEBVisitor.getDailySummary ? BTEBVisitor.getDailySummary(30) : []);
+        var dailyBadge = document.getElementById('visitorDailyDaysBadge');
+        if (dailyBadge) {
+            dailyBadge.textContent = dailySummary.length.toLocaleString() + ' দিন';
+        }
+        var dailyTbody = document.getElementById('visitorDailyTableBody');
+        if (dailyTbody) {
+            if (dailySummary.length === 0) {
+                dailyTbody.innerHTML =
+                    '<tr>' +
+                        '<td colspan="2" style="text-align:center;padding:24px;color:var(--text-muted);">' +
+                            'কোনো ভিজিটর ডেটা পাওয়া যায়নি।' +
+                        '</td>' +
+                    '</tr>';
+            } else {
+                var dailyHtml = '';
+                for (var dIdx = 0; dIdx < dailySummary.length; dIdx++) {
+                    var dRow = dailySummary[dIdx];
+                    dailyHtml +=
+                        '<tr>' +
+                            '<td>' + escVisitorHtml(dRow.visit_date) + '</td>' +
+                            '<td><strong>' + Number(dRow.total_visitors || 0).toLocaleString() + '</strong> জন</td>' +
+                        '</tr>';
+                }
+                dailyTbody.innerHTML = dailyHtml;
+            }
+        }
+
         var tbody = document.getElementById('visitorLogsTableBody');
         if (!tbody) return;
 

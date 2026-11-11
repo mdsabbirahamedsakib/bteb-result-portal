@@ -349,6 +349,46 @@ const BTEBVisitor = (function () {
         return out;
     }
 
+    function getDailySummary(limit) {
+        var maxDays = typeof limit === 'number' && limit > 0 ? limit : 30;
+        var store = readStore();
+        var byDate = {};
+
+        var dailyKeys = Object.keys(store.dailyStats || {});
+        for (var i = 0; i < dailyKeys.length; i++) {
+            var d = dailyKeys[i];
+            var bucket = store.dailyStats[d];
+            var cnt = bucket && typeof bucket.visits === 'number'
+                ? bucket.visits
+                : (bucket && Array.isArray(bucket.clients) ? bucket.clients.length : 0);
+            if (cnt > 0) byDate[d] = cnt;
+        }
+
+        // Also reconcile from logs if any entry exists without a bucket count
+        var logCounts = {};
+        for (var j = 0; j < store.logs.length; j++) {
+            var ld = store.logs[j].visit_date;
+            if (ld) logCounts[ld] = (logCounts[ld] || 0) + 1;
+        }
+        var logDateKeys = Object.keys(logCounts);
+        for (var k = 0; k < logDateKeys.length; k++) {
+            var dateStr = logDateKeys[k];
+            if (!byDate[dateStr]) {
+                byDate[dateStr] = logCounts[dateStr];
+            }
+        }
+
+        return Object.keys(byDate)
+            .sort(function (a, b) { return a < b ? 1 : (a > b ? -1 : 0); })
+            .slice(0, maxDays)
+            .map(function (dateKey) {
+                return {
+                    visit_date: dateKey,
+                    total_visitors: byDate[dateKey]
+                };
+            });
+    }
+
     function getLogs(filter) {
         return filterLocalLogs(readStore().logs, filter);
     }
@@ -356,10 +396,12 @@ const BTEBVisitor = (function () {
     async function getLogsAsync(filter) {
         var apiCfg = getApiConfig();
         var localStats = getStats();
+        var localDaily = getDailySummary(30);
         if (!apiCfg.enabled || !apiCfg.endpoint || typeof fetch === 'undefined') {
             return {
                 mode: 'static',
                 stats: localStats,
+                dailySummary: localDaily,
                 logs: getLogs(filter)
             };
         }
@@ -392,6 +434,7 @@ const BTEBVisitor = (function () {
                 return {
                     mode: 'mysql',
                     stats: data.stats || localStats,
+                    dailySummary: Array.isArray(data.dailySummary) ? data.dailySummary : [],
                     logs: Array.isArray(data.logs) ? data.logs : []
                 };
             }
@@ -399,6 +442,7 @@ const BTEBVisitor = (function () {
                 mode: 'static',
                 backendError: (data && data.message) || ('HTTP ' + res.status),
                 stats: localStats,
+                dailySummary: localDaily,
                 logs: getLogs(filter)
             };
         } catch (e) {
@@ -406,6 +450,7 @@ const BTEBVisitor = (function () {
                 mode: 'static',
                 backendError: 'ব্যাকএন্ড সার্ভারের সাথে সংযোগ করা যায়নি (Static মোড দেখানো হচ্ছে)।',
                 stats: localStats,
+                dailySummary: localDaily,
                 logs: getLogs(filter)
             };
         }
@@ -566,6 +611,7 @@ const BTEBVisitor = (function () {
         recordVisit: recordVisit,
         getStats: getStats,
         getStatsAsync: getStatsAsync,
+        getDailySummary: getDailySummary,
         getLogs: getLogs,
         getLogsAsync: getLogsAsync,
         clearLocalLogs: clearLocalLogs,

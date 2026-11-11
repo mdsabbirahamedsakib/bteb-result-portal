@@ -104,6 +104,54 @@ function btebTrackVisitorVisit($db, string $visitDate, bool $trustProxy = false)
     return ['recorded' => false, 'duplicate' => false, 'id' => null];
 }
 
+/**
+ * Fetch per-day visitor summary for the last $limit days.
+ * Exact equivalent of:
+ *   SELECT visit_date, COUNT(id) AS total_visitors
+ *   FROM visitor_logs GROUP BY visit_date ORDER BY visit_date DESC LIMIT ?
+ *
+ * @param PDO|mysqli $db
+ * @return array<int, array{visit_date:string, total_visitors:int}>
+ */
+function btebGetDailyVisitorSummary($db, int $limit = 30): array {
+    $safeLimit = max(1, min(365, $limit));
+
+    if ($db instanceof PDO) {
+        $stmt = $db->prepare('SELECT visit_date, COUNT(id) AS total_visitors FROM visitor_logs GROUP BY visit_date ORDER BY visit_date DESC LIMIT :lim');
+        $stmt->bindValue(':lim', $safeLimit, PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return array_map(function ($row) {
+            return [
+                'visit_date'     => (string)$row['visit_date'],
+                'total_visitors' => (int)$row['total_visitors']
+            ];
+        }, $rows ?: []);
+    }
+
+    if ($db instanceof mysqli) {
+        $stmt = mysqli_prepare($db, 'SELECT visit_date, COUNT(id) AS total_visitors FROM visitor_logs GROUP BY visit_date ORDER BY visit_date DESC LIMIT ?');
+        if ($stmt) {
+            mysqli_stmt_bind_param($stmt, 'i', $safeLimit);
+            mysqli_stmt_execute($stmt);
+            $res = mysqli_stmt_get_result($stmt);
+            $out = [];
+            if ($res) {
+                while ($row = mysqli_fetch_assoc($res)) {
+                    $out[] = [
+                        'visit_date'     => (string)$row['visit_date'],
+                        'total_visitors' => (int)$row['total_visitors']
+                    ];
+                }
+            }
+            mysqli_stmt_close($stmt);
+            return $out;
+        }
+    }
+
+    return [];
+}
+
 // Auto-run cleanly when included directly into a PHP page that provides $conn or $pdo
 if (!defined('BTEB_VISITOR_LIB_ONLY')) {
     if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
