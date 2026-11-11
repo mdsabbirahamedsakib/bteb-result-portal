@@ -802,6 +802,20 @@
    Step 7: Admin Authentication & Security Styles
    ========================================================================== */
 
+/* ─── Hardened Admin Lockdown State ─── */
+body.admin-locked main,
+body.admin-locked .admin-user-pill,
+body.admin-locked #adminLogoutBtn,
+body.admin-locked .nav-actions .btn-outline {
+    display: none !important;
+}
+
+body.admin-locked .navbar {
+    filter: blur(6px);
+    pointer-events: none;
+    user-select: none;
+}
+
 /* ─── Admin Auth Overlay / Screen ─── */
 .admin-auth-overlay {
     position: fixed;
@@ -809,10 +823,10 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: radial-gradient(circle at 50% 30%, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.98));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    z-index: 9999;
+    background: radial-gradient(circle at 50% 30%, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.99));
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    z-index: 999999;
     display: flex;
     align-items: center;
     justify-content: center;

@@ -81,9 +81,18 @@ document.addEventListener('DOMContentLoaded', function () {
             var dt = e.dataTransfer;
             var files = dt ? dt.files : null;
             if (files && files.length > 0) {
-                window.handlePdfFile(files[0]);
+                window.handlePdfBatch(Array.from(files));
             }
         }, false);
+
+        pdfDropZone.addEventListener('click', function (e) {
+            if (e.target && (e.target.id === 'pdfFileInput' || e.target.tagName === 'BUTTON')) return;
+            var fi = document.getElementById('pdfFileInput');
+            if (fi) {
+                fi.value = null;
+                fi.click();
+            }
+        });
     }
 
     // ─── Live Preview Stats on Paste/Type ───
@@ -928,6 +937,10 @@ function saveSiteSettingsHandler(isSilent) {
 // Step 7: Admin Authentication & Session Management
 // ==========================================================================
 
+// Failed login attempt tracking for brute-force defense
+var failedLoginAttempts = 0;
+var loginLockUntil = 0;
+
 function checkAuthStatus() {
     var overlay = document.getElementById('adminAuthOverlay');
     var badge = document.getElementById('adminUserBadge');
@@ -938,14 +951,23 @@ function checkAuthStatus() {
     }
 
     if (BTEBStorage.isAdminLoggedIn()) {
+        document.body.classList.remove('admin-locked');
         if (overlay) overlay.classList.add('hidden');
     } else {
+        document.body.classList.add('admin-locked');
         if (overlay) {
             overlay.classList.remove('hidden');
             var loginUserInput = document.getElementById('loginUsername');
+            var loginPassInput = document.getElementById('loginPassword');
+            if (loginPassInput) loginPassInput.value = '';
             if (loginUserInput) {
-                if (!loginUserInput.value) loginUserInput.value = creds.username || 'sabbir12';
-                setTimeout(function(){ loginUserInput.focus(); }, 150);
+                setTimeout(function(){ 
+                    if (!loginUserInput.value) {
+                        loginUserInput.focus();
+                    } else if (loginPassInput) {
+                        loginPassInput.focus();
+                    }
+                }, 150);
             }
         }
     }
@@ -963,16 +985,19 @@ window.togglePasswordVisibility = function(inputId, btnEl) {
     }
 };
 
-window.autoFillAndLoginAdmin = function() {
-    var userEl = document.getElementById('loginUsername');
-    var passEl = document.getElementById('loginPassword');
-    var creds = BTEBStorage.getAdminCredentials();
-    if (userEl) userEl.value = creds.username || 'sabbir12';
-    if (passEl) passEl.value = creds.password || 'sabbiR23';
-    window.handleAdminLoginSubmit();
-};
-
 window.handleAdminLoginSubmit = function() {
+    var now = Date.now();
+    if (loginLockUntil && now < loginLockUntil) {
+        var remainSec = Math.ceil((loginLockUntil - now) / 1000);
+        var errBanner = document.getElementById('authErrorBanner');
+        var errText = document.getElementById('authErrorMsg');
+        if (errBanner) {
+            errBanner.classList.remove('hidden');
+            if (errText) errText.textContent = '🔒 অতিরিক্ত ভুল চেষ্টার কারণে লগইন ' + remainSec + ' সেকেন্ডের জন্য লক রয়েছে!';
+        }
+        return;
+    }
+
     var userEl = document.getElementById('loginUsername');
     var passEl = document.getElementById('loginPassword');
     var errBanner = document.getElementById('authErrorBanner');
@@ -984,7 +1009,7 @@ window.handleAdminLoginSubmit = function() {
     if (!username || !password) {
         if (errBanner) {
             errBanner.classList.remove('hidden');
-            if (errText) errText.textContent = 'অনুগ্রহ করে ইউজারনেম ও পাসওয়ার্ড দুটিই লিখুন!';
+            if (errText) errText.textContent = 'অনুগ্রহ করে অ্যাডমিন ইউজারনেম ও পাসওয়ার্ড দুটিই লিখুন!';
         }
         return;
     }
@@ -992,17 +1017,28 @@ window.handleAdminLoginSubmit = function() {
     var isValid = BTEBStorage.verifyAdminCredentials(username, password);
 
     if (isValid) {
+        failedLoginAttempts = 0;
+        loginLockUntil = 0;
         if (errBanner) errBanner.classList.add('hidden');
         BTEBStorage.setAdminLoggedIn(true);
         checkAuthStatus();
         if (passEl) passEl.value = '';
         if (window.showToast) {
-            window.showToast('✅ স্বাগতম! সফলভাবে অ্যাডমিন প্যানেলে লগইন হয়েছে।', 'success');
+            window.showToast('✅ স্বাগতম! সফলভাবে অ্যাডমিন প্যানেলে প্রবেশ করেছেন।', 'success');
         }
     } else {
-        if (errBanner) {
-            errBanner.classList.remove('hidden');
-            if (errText) errText.textContent = '❌ ভুল ইউজারনেম বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।';
+        failedLoginAttempts++;
+        if (failedLoginAttempts >= 5) {
+            loginLockUntil = Date.now() + (30 * 1000); // Lock for 30s
+            if (errBanner) {
+                errBanner.classList.remove('hidden');
+                if (errText) errText.textContent = '❌ পরপর ৫ বার ভুল পাসওয়ার্ড! নিরাপত্তার স্বার্থে ৩০ সেকেন্ড অপেক্ষা করুন।';
+            }
+        } else {
+            if (errBanner) {
+                errBanner.classList.remove('hidden');
+                if (errText) errText.textContent = '❌ ভুল ইউজারনেম বা পাসওয়ার্ড! সঠিক পাসওয়ার্ড ছাড়া অ্যাডমিন প্যানেলে প্রবেশ সম্পূর্ণ নিষিদ্ধ।';
+            }
         }
         if (passEl) {
             passEl.value = '';
@@ -1012,13 +1048,39 @@ window.handleAdminLoginSubmit = function() {
 };
 
 window.handleAdminLogout = function() {
-    if (confirm('আপনি কি অ্যাডমিন প্যানেল থেকে লগআউট করতে চান?')) {
+    if (confirm('আপনি কি অ্যাডমিন প্যানেল থেকে লগআউট করে সম্পূর্ণ লক করতে চান?')) {
         BTEBStorage.setAdminLoggedIn(false);
         checkAuthStatus();
         if (window.showToast) {
-            window.showToast('🚪 সফলভাবে লগআউট সম্পন্ন হয়েছে।', 'info');
+            window.showToast('🚪 সফলভাবে লগআউট সম্পন্ন হয়েছে। অ্যাডমিন প্যানেল লক করা হয়েছে।', 'info');
         }
     }
+};
+
+// Auto-Lock Session after 30 minutes of user inactivity
+(function() {
+    var inactivityTimer = null;
+    var INACTIVITY_LIMIT_MS = 30 * 60 * 1000;
+
+    function resetInactivityTimer() {
+        if (!BTEBStorage.isAdminLoggedIn()) return;
+        clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(function() {
+            if (BTEBStorage.isAdminLoggedIn()) {
+                BTEBStorage.setAdminLoggedIn(false);
+                checkAuthStatus();
+                if (window.showToast) {
+                    window.showToast('⏱️ দীর্ঘক্ষণ নিষ্ক্রিয় থাকার কারণে নিরাপত্তার স্বার্থে অ্যাডমিন প্যানেল স্বয়ংক্রিয় লক করা হয়েছে।', 'warning');
+                }
+            }
+        }, INACTIVITY_LIMIT_MS);
+    }
+
+    ['mousedown', 'keydown', 'scroll', 'touchstart'].forEach(function(evt) {
+        window.addEventListener(evt, resetInactivityTimer, { passive: true });
+    });
+    resetInactivityTimer();
+})();
 };
 
 // ==========================================================================
@@ -1670,16 +1732,16 @@ window.handlePdfBatch = async function(fileList) {
 
             var descText = '';
             if (sRec.status === 'Passed') {
-                descText = Object.keys(sRec.semesters).map(function(s){ return 'Sem ' + s + ': ' + sRec.semesters[s].value; }).join(', ') || 'উত্তীর্ণ';
+                descText = Object.keys(sRec.semesters || {}).map(function(s){ return 'Sem ' + s + ': ' + (sRec.semesters[s].value || sRec.semesters[s]); }).join(', ') || 'উত্তীর্ণ';
             } else if (sRec.status === 'Referred') {
-                descText = sRec.referredSubjects.map(function(sub){ return sub.raw || sub.code; }).join(', ');
+                descText = (sRec.referredSubjects || sRec.referred || []).map(function(sub){ return sub.raw || sub.code || sub; }).join(', ');
             } else {
                 descText = 'সেমিস্টার ড্রপ';
             }
 
             sampleHtml += '<tr style="border-bottom:1px solid var(--border-color);">';
             sampleHtml += '<td style="padding:6px 10px;font-family:monospace;font-weight:600;">' + sRec.roll + '</td>';
-            sampleHtml += '<td style="padding:6px 10px;"><span style="background:' + bgBadge + ';color:' + clrBadge + ';padding:2px 8px;border-radius:10px;font-size:12px;font-weight:500;">' + sRec.statusBangla + '</span></td>';
+            sampleHtml += '<td style="padding:6px 10px;"><span style="background:' + bgBadge + ';color:' + clrBadge + ';padding:2px 8px;border-radius:10px;font-size:12px;font-weight:500;">' + (sRec.statusBangla || sRec.status) + '</span></td>';
             sampleHtml += '<td style="padding:6px 10px;color:var(--text-muted);">' + descText + '</td>';
             sampleHtml += '</tr>';
         }
@@ -1687,10 +1749,62 @@ window.handlePdfBatch = async function(fileList) {
         sampleList.innerHTML = sampleHtml;
     }
 
+    // Instant Verification Test Handler
+    if (testBtn && testInput && testOut) {
+        testBtn.onclick = function() {
+            var queryRoll = BTEBParser.normalizeDigits(testInput.value.trim());
+            if (!queryRoll) {
+                testOut.classList.remove('hidden');
+                testOut.style.background = 'rgba(239,68,68,0.1)';
+                testOut.style.color = '#ef4444';
+                testOut.textContent = 'অনুগ্রহ করে টেস্ট করার জন্য একটি রোল নম্বর লিখুন।';
+                return;
+            }
+
+            var found = BTEBStorage.getStudent(queryRoll);
+            testOut.classList.remove('hidden');
+            if (found) {
+                var statusColor = found.status === 'Passed' ? '#10b981' : (found.status === 'Referred' ? '#f59e0b' : '#ef4444');
+                var statusBg = found.status === 'Passed' ? 'rgba(16,185,129,0.1)' : (found.status === 'Referred' ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)');
+                testOut.style.background = statusBg;
+                testOut.style.border = '1px solid ' + statusColor;
+                testOut.style.color = statusColor;
+
+                var gpaInfo = '';
+                if (found.status === 'Passed') {
+                    gpaInfo = ' | জিপিএ: ' + Object.keys(found.semesters || {}).map(function(s){ return 'সেমিস্টার ' + s + ': ' + (found.semesters[s].value || found.semesters[s]); }).join(', ');
+                } else if (found.status === 'Referred') {
+                    gpaInfo = ' | রেফার্ড বিষয়: ' + (found.referredSubjects || found.referred || []).map(function(s){ return s.raw || s.code || s; }).join(', ');
+                }
+
+                testOut.innerHTML = '<strong>✓ রেজাল্ট পাওয়া গেছে!</strong> রোল: <strong>' + found.roll + '</strong> | স্ট্যাটাস: <strong>' + (found.statusBangla || found.status) + '</strong>' + gpaInfo + ' <br><a href="index.html" target="_blank" style="color:' + statusColor + ';text-decoration:underline;margin-top:4px;display:inline-block;">👉 স্টুডেন্ট পেজে সম্পূর্ণ মার্কশিট কার্ড দেখুন ➔</a>';
+            } else {
+                testOut.style.background = 'rgba(239,68,68,0.1)';
+                testOut.style.border = '1px solid #ef4444';
+                testOut.style.color = '#ef4444';
+                testOut.textContent = '✕ রোল #' + queryRoll + ' এই পিডিএফ বা ডেটাবেসে পাওয়া যায়নি।';
+            }
+        };
+    }
+
+    var downloadJsonBtn = document.getElementById('pdfDownloadJsonBtn');
+    if (downloadJsonBtn) {
+        downloadJsonBtn.onclick = function() {
+            BTEBStorage.exportDatabaseAsJSON();
+        };
+    }
+
     showToast('🎉 অভিনন্দন! ' + totalFiles + 'টি পিডিএফ থেকে ' + cumulativeStudents.toLocaleString() + ' জন শিক্ষার্থীর রেজাল্ট সফলভাবে ডেটাবেসে সংরক্ষিত হয়েছে!', 'success');
 };
 
-// Drag and drop handler on drop zone
+// Global single file alias
+window.handlePdfFile = function(file) {
+    if (file) {
+        window.handlePdfBatch([file]);
+    }
+};
+
+// Drag, drop and click handler on drop zone
 var dropZoneEl = document.getElementById('pdfDropZone');
 if (dropZoneEl) {
     dropZoneEl.addEventListener('dragover', function(e) {
@@ -1711,92 +1825,12 @@ if (dropZoneEl) {
             window.handlePdfBatch(Array.from(e.dataTransfer.files));
         }
     });
+    dropZoneEl.addEventListener('click', function(e) {
+        if (e.target && e.target.id === 'pdfFileInput') return;
+        var input = document.getElementById('pdfFileInput');
+        if (input) {
+            input.value = null;
+            input.click();
+        }
+    });
 }
-
-        // Populate Instant Verification & Preview List
-        var previewContainer = document.getElementById('pdfParsedPreviewContainer');
-        var sampleList = document.getElementById('pdfSampleRollsList');
-        var testInput = document.getElementById('pdfTestRollInput');
-        var testBtn = document.getElementById('pdfTestRollBtn');
-        var testOut = document.getElementById('pdfTestRollOutput');
-
-        if (previewContainer) previewContainer.classList.remove('hidden');
-
-        if (sampleList) {
-            var sampleHtml = '<table style="width:100%;border-collapse:collapse;text-align:left;">';
-            sampleHtml += '<tr style="border-bottom:1px solid var(--border-color);background:rgba(0,0,0,0.03);font-weight:600;"><th style="padding:6px 10px;">রোল নং</th><th style="padding:6px 10px;">ফলাফল</th><th style="padding:6px 10px;">জিপিএ / বিষয়</th></tr>';
-            
-            var sampleCount = Math.min(10, parsedStudents.length);
-            for (var k = 0; k < sampleCount; k++) {
-                var st = parsedStudents[k];
-                var badgeBg = st.status === 'Passed' ? 'rgba(16,185,129,0.15)' : (st.status === 'Referred' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)');
-                var badgeColor = st.status === 'Passed' ? '#10b981' : (st.status === 'Referred' ? '#f59e0b' : '#ef4444');
-                
-                var detailText = '';
-                if (st.status === 'Passed') {
-                    var gpaList = Object.keys(st.semesters).map(function(s){ return 'Sem ' + s + ': ' + st.semesters[s].value; }).join(', ');
-                    detailText = gpaList || 'উত্তীর্ণ';
-                } else if (st.status === 'Referred') {
-                    detailText = st.referredSubjects.map(function(sub){ return sub.raw || sub.code; }).join(', ');
-                } else {
-                    detailText = 'সেমিস্টার ড্রপ / ফেইল';
-                }
-
-                sampleHtml += '<tr style="border-bottom:1px solid var(--border-color);">';
-                sampleHtml += '<td style="padding:6px 10px;font-family:monospace;font-weight:600;">' + st.roll + '</td>';
-                sampleHtml += '<td style="padding:6px 10px;"><span style="background:' + badgeBg + ';color:' + badgeColor + ';padding:2px 8px;border-radius:10px;font-size:12px;font-weight:500;">' + st.statusBangla + '</span></td>';
-                sampleHtml += '<td style="padding:6px 10px;color:var(--text-muted);">' + detailText + '</td>';
-                sampleHtml += '</tr>';
-            }
-            sampleHtml += '</table>';
-            sampleList.innerHTML = sampleHtml;
-        }
-
-        // Instant Verification Test Handler
-        if (testBtn && testInput && testOut) {
-            testBtn.onclick = function() {
-                var queryRoll = BTEBParser.normalizeDigits(testInput.value.trim());
-                if (!queryRoll) {
-                    testOut.classList.remove('hidden');
-                    testOut.style.background = 'rgba(239,68,68,0.1)';
-                    testOut.style.color = '#ef4444';
-                    testOut.textContent = 'অনুগ্রহ করে টেস্ট করার জন্য একটি রোল নম্বর লিখুন।';
-                    return;
-                }
-
-                var found = BTEBStorage.getStudent(queryRoll);
-                testOut.classList.remove('hidden');
-                if (found) {
-                    var statusColor = found.status === 'Passed' ? '#10b981' : (found.status === 'Referred' ? '#f59e0b' : '#ef4444');
-                    var statusBg = found.status === 'Passed' ? 'rgba(16,185,129,0.1)' : (found.status === 'Referred' ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)');
-                    testOut.style.background = statusBg;
-                    testOut.style.border = '1px solid ' + statusColor;
-                    testOut.style.color = statusColor;
-
-                    var gpaInfo = '';
-                    if (found.status === 'Passed') {
-                        gpaInfo = ' | জিপিএ: ' + Object.keys(found.semesters).map(function(s){ return 'সেমিস্টার ' + s + ': ' + found.semesters[s].value; }).join(', ');
-                    } else if (found.status === 'Referred') {
-                        gpaInfo = ' | রেফার্ড বিষয়: ' + found.referredSubjects.map(function(s){ return s.raw || s.code; }).join(', ');
-                    }
-
-                    testOut.innerHTML = '<strong>✓ রেজাল্ট পাওয়া গেছে!</strong> রোল: <strong>' + found.roll + '</strong> | স্ট্যাটাস: <strong>' + found.statusBangla + '</strong>' + gpaInfo + ' <br><a href="index.html" target="_blank" style="color:' + statusColor + ';text-decoration:underline;margin-top:4px;display:inline-block;">👉 স্টুডেন্ট পেজে সম্পূর্ণ মার্কশিট কার্ড দেখুন ➔</a>';
-                } else {
-                    testOut.style.background = 'rgba(239,68,68,0.1)';
-                    testOut.style.border = '1px solid #ef4444';
-                    testOut.style.color = '#ef4444';
-                    testOut.textContent = '✕ রোল #' + queryRoll + ' এই পিডিএফ বা ডেটাবেসে পাওয়া যায়নি।';
-                }
-            };
-        }
-
-        renderSavedSheets();
-        renderGlobalStats();
-
-        showToast('🎉 অভিনন্দন! ' + parsedStudents.length.toLocaleString() + 'টি রোল নম্বর পিডিএফ থেকে সফলভাবে পার্স ও ডেটাবেসে সেভ হয়েছে!', 'success');
-
-    } catch (err) {
-        console.error('PDF parsing error:', err);
-        showToast('❌ পিডিএফ প্রসেসিং ব্যর্থ: ' + err.message, 'danger');
-    }
-};

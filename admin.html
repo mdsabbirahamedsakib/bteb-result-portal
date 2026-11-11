@@ -13,7 +13,7 @@
     <!-- Mozilla PDF.js for 100% Client-Side PDF Auto-Parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
-<body>
+<body class="admin-locked">
 
     <!-- ================= Top Navbar ================= -->
     <header class="navbar">
@@ -67,13 +67,13 @@
     </header>
 
     <!-- ================= Step 7: Secure Admin Login Modal / Overlay ================= -->
-    <div class="admin-auth-overlay hidden" id="adminAuthOverlay">
+    <div class="admin-auth-overlay" id="adminAuthOverlay">
         <div class="admin-auth-card">
             <div class="admin-auth-header">
                 <div class="admin-auth-icon">🔐</div>
-                <h3 class="admin-auth-title">অ্যাডমিন লগইন (Admin Login)</h3>
+                <h3 class="admin-auth-title">অ্যাডমিন লগইন (Admin Authentication)</h3>
                 <p class="admin-auth-desc">
-                    রেজাল্ট আপলোড, এডিট ও সাইট কন্ট্রোলে প্রবেশ করতে আপনার অ্যাডমিন ক্রেডেনশিয়াল দিন
+                    রেজাল্ট আপলোড ও পোর্টাল পরিচালনায় প্রবেশ করতে নির্ধারিত অ্যাডমিন ইউজারনেম ও পাসওয়ার্ড দিয়ে যাচাই করুন
                 </p>
             </div>
 
@@ -90,7 +90,7 @@
                         type="text" 
                         id="loginUsername" 
                         class="form-input" 
-                        placeholder="যেমন: sabbir12" 
+                        placeholder="অ্যাডমিন ইউজারনেম লিখুন" 
                         autocomplete="username"
                         required
                     />
@@ -103,7 +103,7 @@
                             type="password" 
                             id="loginPassword" 
                             class="form-input" 
-                            placeholder="যেমন: sabbiR23" 
+                            placeholder="অ্যাডমিন পাসওয়ার্ড লিখুন" 
                             autocomplete="current-password"
                             required
                         />
@@ -113,18 +113,15 @@
                     </div>
                 </div>
 
-                <div style="display:flex;gap:10px;margin-bottom:14px;">
-                    <button type="submit" class="btn btn-primary" id="loginSubmitBtn" style="flex:1;padding:12px;font-size:0.95rem;">
-                        🔓 লগইন করুন (Login)
-                    </button>
-                    <button type="button" class="btn btn-outline" onclick="autoFillAndLoginAdmin()" style="padding:12px 14px;font-size:0.85rem;white-space:nowrap;border-color:#10b981;color:#10b981;" title="ডিফল্ট তথ্য দিয়ে সরাসরি লগইন">
-                        ⚡ এক-ক্লিকে লগইন
+                <div style="margin-bottom:14px;">
+                    <button type="submit" class="btn btn-primary" id="loginSubmitBtn" style="width:100%;padding:12px;font-size:1rem;font-weight:700;">
+                        🔓 সুরক্ষিত লগইন করুন (Login)
                     </button>
                 </div>
 
-                <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.82rem;color:var(--text-muted);">
-                    <a href="index.html" style="color:var(--primary);text-decoration:none;">&larr; স্টুডেন্ট পেজে ফিরে যান</a>
-                    <span style="font-size:0.75rem;color:var(--text-muted);">Default: sabbir12 / sabbiR23</span>
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.85rem;color:var(--text-muted);">
+                    <a href="index.html" style="color:var(--primary);text-decoration:none;font-weight:600;">&larr; স্টুডেন্ট সার্চ পেজে ফিরে যান</a>
+                    <span style="font-size:0.78rem;color:#ef4444;font-weight:600;">🔒 সর্বোচ্চ নিরাপত্তা এনক্রিপশন সক্রিয়</span>
                 </div>
             </form>
         </div>
@@ -292,15 +289,15 @@
                     </div>
 
                     <!-- PDF Drag and Drop Area (Multi-PDF Batch & Queue Ready) -->
-                    <div class="pdf-drop-zone" id="pdfDropZone">
-                        <input type="file" id="pdfFileInput" accept="application/pdf" multiple style="display:none;" onchange="handlePdfFilesSelected(event)">
+                    <div class="pdf-drop-zone" id="pdfDropZone" style="cursor:pointer;" title="পিডিএফ ফাইল নির্বাচন করতে এখানে ক্লিক করুন অথবা টেনে এনে ড্রপ করুন">
+                        <input type="file" id="pdfFileInput" accept="application/pdf" multiple style="display:none;" onclick="this.value=null;" onchange="handlePdfFilesSelected(event)">
                         <div class="pdf-drop-icon">📑</div>
-                        <h4 class="pdf-drop-title">BTEB বোর্ডের একাধিক রেজাল্ট PDF ফাইল (১০-১৫টি বা তার বেশি) ড্রপ করুন অথবা ক্লিক করুন</h4>
+                        <h4 class="pdf-drop-title">BTEB বোর্ডের এক বা একাধিক রেজাল্ট PDF ফাইল এখানে ড্রপ করুন অথবা ক্লিক করুন</h4>
                         <p class="pdf-drop-desc">
-                            প্রতিটি ১০০০+ পৃষ্ঠার বিশাল রেজাল্ট পিডিএফ কোনো হ্যাং বা ব্রাউজার ফ্রিজিং ছাড়াই ব্যাকগ্রাউন্ড কিউ সিস্টেমে পেজ-বাই-পেজ স্বয়ংক্রিয়ভাবে পার্স ও ইনডেক্স হবে।
+                            ১ বা ততোধিক (১০-১৫টি) বিশাল রেজাল্ট পিডিএফ কোনো হ্যাং ছাড়াই স্বয়ংক্রিয়ভাবে পার্স ও O(1) ইনডেক্স হবে।
                         </p>
-                        <button type="button" class="btn btn-primary" onclick="document.getElementById('pdfFileInput').click()" style="margin-top:12px;padding:9px 24px;font-size:14.5px;font-weight:600;">
-                            📁 একসাথে একাধিক PDF ফাইল নির্বাচন করুন (Select Multiple PDFs)
+                        <button type="button" class="btn btn-primary" onclick="event.stopPropagation(); var fi=document.getElementById('pdfFileInput'); if(fi){ fi.value=null; fi.click(); }" style="margin-top:12px;padding:10px 26px;font-size:15px;font-weight:700;box-shadow:0 4px 12px rgba(239,68,68,0.25);">
+                            📁 PDF ফাইল নির্বাচন করুন (Select PDF Files)
                         </button>
                         <div id="pdfFileNameDisplay" class="pdf-file-name hidden"></div>
                     </div>
@@ -1149,9 +1146,7 @@
                         <div class="form-group" style="margin-bottom:16px;">
                             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
                                 <label class="form-label" for="secCurrentPass" style="margin-bottom:0;">বর্তমান পাসওয়ার্ড (Current Password): *</label>
-                                <button type="button" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:0.78rem;font-weight:600;" onclick="document.getElementById('secCurrentPass').value=BTEBStorage.getAdminCredentials().password;">
-                                    ⚡ বর্তমান পাসওয়ার্ড স্বয়ংক্রিয় পূরণ
-                                </button>
+                                <span style="font-size:0.78rem;color:var(--text-muted);">নিরাপত্তার জন্য বর্তমান পাসওয়ার্ড লিখুন</span>
                             </div>
                             <div class="password-input-group">
                                 <input 
