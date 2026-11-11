@@ -1235,6 +1235,14 @@ body.admin-locked .navbar {
     border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
+[data-theme="dark"] .admin-section-header {
+    background: #0f172a;
+}
+
+[data-theme="dark"] .admin-section-title {
+    color: #f1f5f9;
+}
+
 [data-theme="dark"] .visitor-logs-table th {
     background: #0f172a;
     color: #e2e8f0;
