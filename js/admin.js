@@ -457,6 +457,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!globalStatsContainer) return;
         var stats = BTEBStorage.getTotalStats();
         var passRate = stats.totalStudents > 0 ? ((stats.totalPassed / stats.totalStudents) * 100).toFixed(1) : '0.0';
+        var vStats = (typeof BTEBVisitor !== 'undefined') ? BTEBVisitor.getStats() : null;
 
         globalStatsContainer.innerHTML =
             '<div class="dash-stat-card">' +
@@ -482,7 +483,17 @@ document.addEventListener('DOMContentLoaded', function () {
             '<div class="dash-stat-card">' +
                 '<div class="dash-stat-icon" style="background:#f0f9ff;color:#0284c7">📊</div>' +
                 '<div class="dash-stat-body"><span class="dash-stat-num">' + passRate + '%</span><span class="dash-stat-label">পাসের হার</span></div>' +
-            '</div>';
+            '</div>' +
+            (vStats ? (
+                '<div class="dash-stat-card" style="cursor:pointer;" onclick="switchAdminTab(\'tab-visitors\')" title="ভিজিটর লগ দেখুন">' +
+                    '<div class="dash-stat-icon" style="background:#f5f3ff;color:#7c3aed">👁️</div>' +
+                    '<div class="dash-stat-body"><span class="dash-stat-num">' + Number(vStats.totalVisits || 0).toLocaleString() + '</span><span class="dash-stat-label">মোট ভিজিটর</span></div>' +
+                '</div>' +
+                '<div class="dash-stat-card" style="cursor:pointer;" onclick="switchAdminTab(\'tab-visitors\')" title="আজকের ভিজিটর লগ দেখুন">' +
+                    '<div class="dash-stat-icon" style="background:#ecfeff;color:#0891b2">📅</div>' +
+                    '<div class="dash-stat-body"><span class="dash-stat-num">' + Number(vStats.todayVisits || 0).toLocaleString() + '</span><span class="dash-stat-label">আজকের ভিজিটর</span></div>' +
+                '</div>'
+            ) : '');
     }
 
     function renderSavedSheets() {
@@ -1853,3 +1864,272 @@ if (dropZoneEl) {
         }
     });
 }
+
+// ==========================================================================
+// Visitor Analytics & Visitor Logs Dashboard Controller
+// ==========================================================================
+(function () {
+    'use strict';
+
+    var currentRenderedVisitorLogs = [];
+
+    function escVisitorHtml(val) {
+        return String(val === null || typeof val === 'undefined' ? '' : val)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function wireVisitorEventsOnce() {
+        var dateFilter = document.getElementById('visitorDateFilter');
+        var customDate = document.getElementById('visitorCustomDate');
+        var searchInput = document.getElementById('visitorSearchInput');
+        var refreshBtn = document.getElementById('visitorRefreshBtn');
+        var exportSqlBtn = document.getElementById('visitorExportSqlBtn');
+        var exportCsvBtn = document.getElementById('visitorExportCsvBtn');
+        var clearBtn = document.getElementById('visitorClearBtn');
+        var saveBackendBtn = document.getElementById('visitorSaveBackendBtn');
+
+        if (dateFilter && !dateFilter._visitorWired) {
+            dateFilter._visitorWired = true;
+            dateFilter.addEventListener('change', function () {
+                if (customDate) {
+                    if (dateFilter.value === 'custom') {
+                        customDate.classList.remove('hidden');
+                        if (!customDate.value) {
+                            var d = new Date();
+                            var p = function (n) { return n < 10 ? '0' + n : String(n); };
+                            customDate.value = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+                        }
+                    } else {
+                        customDate.classList.add('hidden');
+                    }
+                }
+                window.renderVisitorDashboard();
+            });
+        }
+
+        if (customDate && !customDate._visitorWired) {
+            customDate._visitorWired = true;
+            customDate.addEventListener('change', function () {
+                window.renderVisitorDashboard();
+            });
+        }
+
+        if (searchInput && !searchInput._visitorWired) {
+            searchInput._visitorWired = true;
+            searchInput.addEventListener('input', function () {
+                window.renderVisitorDashboard();
+            });
+        }
+
+        if (refreshBtn && !refreshBtn._visitorWired) {
+            refreshBtn._visitorWired = true;
+            refreshBtn.addEventListener('click', function () {
+                window.renderVisitorDashboard();
+                if (window.showToast) window.showToast('🔄 ভিজিটর লগ তালিকা রিফ্রেশ করা হয়েছে!', 'info');
+            });
+        }
+
+        if (exportSqlBtn && !exportSqlBtn._visitorWired) {
+            exportSqlBtn._visitorWired = true;
+            exportSqlBtn.addEventListener('click', function () {
+                if (typeof BTEBVisitor !== 'undefined') {
+                    BTEBVisitor.exportLogsAsSQL(currentRenderedVisitorLogs);
+                    if (window.showToast) window.showToast('📥 visitor_logs (.SQL) ফাইল ডাউনলোড শুরু হয়েছে!', 'success');
+                }
+            });
+        }
+
+        if (exportCsvBtn && !exportCsvBtn._visitorWired) {
+            exportCsvBtn._visitorWired = true;
+            exportCsvBtn.addEventListener('click', function () {
+                if (typeof BTEBVisitor !== 'undefined') {
+                    BTEBVisitor.exportLogsAsCSV(currentRenderedVisitorLogs);
+                    if (window.showToast) window.showToast('📊 visitor_logs (.CSV) ফাইল ডাউনলোড শুরু হয়েছে!', 'success');
+                }
+            });
+        }
+
+        if (clearBtn && !clearBtn._visitorWired) {
+            clearBtn._visitorWired = true;
+            clearBtn.addEventListener('click', async function () {
+                if (typeof BTEBVisitor === 'undefined') return;
+                if (!confirm('আপনি কি নিশ্চিতভাবে সংরক্ষিত সকল ভিজিটর লগ মুছে ফেলতে চান?')) return;
+                var res = await BTEBVisitor.clearLogsAsync();
+                window.renderVisitorDashboard();
+                if (window.showToast) {
+                    if (res && res.ok === false && res.message) {
+                        window.showToast('⚠️ লোকাল লগ মুছে ফেলা হয়েছে, তবে ব্যাকএন্ড: ' + res.message, 'warning');
+                    } else {
+                        window.showToast('🗑️ সকল ভিজিটর লগ সফলভাবে মুছে ফেলা হয়েছে!', 'success');
+                    }
+                }
+            });
+        }
+
+        if (saveBackendBtn && !saveBackendBtn._visitorWired) {
+            saveBackendBtn._visitorWired = true;
+            saveBackendBtn.addEventListener('click', async function () {
+                if (typeof BTEBVisitor === 'undefined') return;
+                var toggle = document.getElementById('visitorBackendToggle');
+                var endpoint = document.getElementById('visitorApiEndpoint');
+                var adminKey = document.getElementById('visitorAdminKey');
+
+                var saved = BTEBVisitor.saveApiConfig({
+                    enabled: toggle ? toggle.checked : false,
+                    endpoint: endpoint ? endpoint.value : 'api/visitor_logs.php',
+                    adminKey: adminKey ? adminKey.value : ''
+                });
+
+                await window.renderVisitorDashboard();
+                if (window.showToast) {
+                    window.showToast(
+                        saved.enabled
+                            ? '💾 PHP/MySQL ব্যাকএন্ড সেটিংস সংরক্ষিত ও যাচাই করা হয়েছে!'
+                            : '💾 Static (LocalStorage) মোড সক্রিয় করা হয়েছে!',
+                        'success'
+                    );
+                }
+            });
+        }
+
+        if (typeof window !== 'undefined' && !window._adminVisitorRealtimeWired) {
+            window._adminVisitorRealtimeWired = true;
+            window.addEventListener('bteb-visitor-updated', function () {
+                // Refresh global overview cards on Tab 1
+                var gStatsEl = document.getElementById('globalStatsContainer');
+                if (gStatsEl && typeof BTEBStorage !== 'undefined' && typeof BTEBVisitor !== 'undefined') {
+                    var visitorCards = gStatsEl.querySelectorAll('.dash-stat-card');
+                    var vStats = BTEBVisitor.getStats();
+                    if (visitorCards.length >= 8) {
+                        var totalNum = visitorCards[6].querySelector('.dash-stat-num');
+                        var todayNum = visitorCards[7].querySelector('.dash-stat-num');
+                        if (totalNum) totalNum.textContent = Number(vStats.totalVisits || 0).toLocaleString();
+                        if (todayNum) todayNum.textContent = Number(vStats.todayVisits || 0).toLocaleString();
+                    }
+                }
+                var tabEl = document.getElementById('tab-visitors');
+                if (tabEl && !tabEl.classList.contains('hidden')) {
+                    window.renderVisitorDashboard();
+                }
+            });
+        }
+    }
+
+    window.renderVisitorDashboard = async function () {
+        if (typeof BTEBVisitor === 'undefined') return;
+        wireVisitorEventsOnce();
+
+        var apiCfg = BTEBVisitor.getApiConfig();
+        var toggleEl = document.getElementById('visitorBackendToggle');
+        var endpointEl = document.getElementById('visitorApiEndpoint');
+        var adminKeyEl = document.getElementById('visitorAdminKey');
+        if (toggleEl) toggleEl.checked = apiCfg.enabled;
+        if (endpointEl && !endpointEl.value) endpointEl.value = apiCfg.endpoint;
+        if (adminKeyEl && !adminKeyEl.value && apiCfg.adminKey) adminKeyEl.value = apiCfg.adminKey;
+
+        var dateFilter = document.getElementById('visitorDateFilter');
+        var customDate = document.getElementById('visitorCustomDate');
+        var searchInput = document.getElementById('visitorSearchInput');
+
+        var filter = {
+            dateMode: dateFilter ? dateFilter.value : 'all',
+            specificDate: customDate ? customDate.value : '',
+            query: searchInput ? searchInput.value : '',
+            limit: 200
+        };
+
+        var result = await BTEBVisitor.getLogsAsync(filter);
+        var stats = result.stats || BTEBVisitor.getStats();
+        var logs = Array.isArray(result.logs) ? result.logs : [];
+        currentRenderedVisitorLogs = logs;
+
+        var statsGrid = document.getElementById('visitorStatsGrid');
+        if (statsGrid) {
+            statsGrid.innerHTML =
+                '<div class="dash-stat-card">' +
+                    '<div class="dash-stat-icon" style="background:#f5f3ff;color:#7c3aed">👁️</div>' +
+                    '<div class="dash-stat-body"><span class="dash-stat-num">' + Number(stats.totalVisits || 0).toLocaleString() + '</span><span class="dash-stat-label">মোট ভিজিট (Total Visits)</span></div>' +
+                '</div>' +
+                '<div class="dash-stat-card">' +
+                    '<div class="dash-stat-icon" style="background:#ecfeff;color:#0891b2">📅</div>' +
+                    '<div class="dash-stat-body"><span class="dash-stat-num">' + Number(stats.todayVisits || 0).toLocaleString() + '</span><span class="dash-stat-label">আজকের ভিজিট (Today)</span></div>' +
+                '</div>' +
+                '<div class="dash-stat-card">' +
+                    '<div class="dash-stat-icon" style="background:#ecfdf5;color:#059669">👤</div>' +
+                    '<div class="dash-stat-body"><span class="dash-stat-num">' + Number(stats.uniqueVisitors || 0).toLocaleString() + '</span><span class="dash-stat-label">মোট ইউনিক ভিজিটর</span></div>' +
+                '</div>' +
+                '<div class="dash-stat-card">' +
+                    '<div class="dash-stat-icon" style="background:#eff6ff;color:#2563eb">🌟</div>' +
+                    '<div class="dash-stat-body"><span class="dash-stat-num">' + Number(stats.todayUnique || 0).toLocaleString() + '</span><span class="dash-stat-label">আজকের ইউনিক ভিজিটর</span></div>' +
+                '</div>';
+        }
+
+        var modeBadge = document.getElementById('visitorModeBadge');
+        if (modeBadge) {
+            if (result.mode === 'mysql') {
+                modeBadge.textContent = '🐘 MySQL + PHP Backend Active';
+                modeBadge.style.background = 'rgba(37, 99, 235, 0.12)';
+                modeBadge.style.color = '#2563eb';
+                modeBadge.style.borderColor = 'rgba(37, 99, 235, 0.3)';
+            } else {
+                modeBadge.textContent = '🌐 Static Mode (GitHub Pages Ready)';
+                modeBadge.style.background = 'rgba(16, 185, 129, 0.12)';
+                modeBadge.style.color = '#059669';
+                modeBadge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+            }
+        }
+
+        var countBadge = document.getElementById('visitorRowCountBadge');
+        if (countBadge) {
+            countBadge.textContent = logs.length.toLocaleString() + 'টি রেকর্ড';
+        }
+
+        var noticeEl = document.getElementById('visitorBackendNotice');
+        if (noticeEl) {
+            if (result.backendError) {
+                noticeEl.textContent = '⚠️ ব্যাকএন্ড বার্তা: ' + result.backendError;
+                noticeEl.classList.remove('hidden');
+            } else {
+                noticeEl.classList.add('hidden');
+            }
+        }
+
+        var tbody = document.getElementById('visitorLogsTableBody');
+        if (!tbody) return;
+
+        if (logs.length === 0) {
+            tbody.innerHTML =
+                '<tr>' +
+                    '<td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted);">' +
+                        'কোনো ভিজিটর লগ পাওয়া যায়নি। স্টুডেন্ট পেজ (<code>index.html</code>) ভিজিট করলে এখানে স্বয়ংক্রিয়ভাবে লগ সংরক্ষিত হবে।' +
+                    '</td>' +
+                '</tr>';
+            return;
+        }
+
+        var rowsHtml = '';
+        for (var i = 0; i < logs.length; i++) {
+            var r = logs[i];
+            rowsHtml +=
+                '<tr>' +
+                    '<td><strong>#' + escVisitorHtml(r.id) + '</strong></td>' +
+                    '<td><span class="visitor-ip-badge">' + escVisitorHtml(r.ip_address) + '</span></td>' +
+                    '<td>' + escVisitorHtml(r.visit_date) + '</td>' +
+                    '<td>' + escVisitorHtml(r.visited_at) + '</td>' +
+                    '<td><span class="visitor-page-badge">' + escVisitorHtml(r.page || 'index.html') + '</span></td>' +
+                '</tr>';
+        }
+        tbody.innerHTML = rowsHtml;
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', wireVisitorEventsOnce);
+    } else {
+        wireVisitorEventsOnce();
+    }
+})();
+

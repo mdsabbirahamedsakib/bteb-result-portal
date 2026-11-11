@@ -13,6 +13,11 @@ document.addEventListener('DOMContentLoaded', function () {
     // ─── Apply Site Settings & Menu Toggles ───
     applySiteSettingsToUI();
 
+    // ─── Record Visit & Render Live Visitor Counter in Footer ───
+    if (typeof BTEBVisitor !== 'undefined') {
+        BTEBVisitor.initFooterCounter('index.html');
+    }
+
     // ─── Check Server Status & Show Maintenance Banner ───
     var maintenanceBanner = document.getElementById('maintenanceBanner');
     var maintenanceBannerMsg = document.getElementById('maintenanceBannerMsg');

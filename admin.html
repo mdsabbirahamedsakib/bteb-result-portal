@@ -170,6 +170,11 @@
                 <div style="font-weight:700;font-size:0.9rem;color:var(--text-main);">সিকিউরিটি ও ক্রেডেনশিয়াল</div>
                 <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">ইউজারনেম ও পাসওয়ার্ড পরিবর্তন</div>
             </div>
+            <div onclick="switchAdminTab('tab-visitors')" class="hub-card" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:14px;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.1);" onmouseover="this.style.borderColor='var(--primary)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border-color)';this.style.transform='none'">
+                <div style="font-size:1.5rem;margin-bottom:6px;">👁️</div>
+                <div style="font-weight:700;font-size:0.9rem;color:var(--text-main);">ভিজিটর লগ (Analytics)</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">মোট, আজকের ভিজিটর ও লগ টেবিল</div>
+            </div>
         </div>
 
         <!-- ────── Step 7: Main Navigation Tabs ────── -->
@@ -188,6 +193,9 @@
             </button>
             <button type="button" class="btn btn-outline admin-main-tab" data-tab="tab-security" onclick="switchAdminTab('tab-security')">
                 🔐 সিকিউরিটি ও পাসওয়ার্ড
+            </button>
+            <button type="button" class="btn btn-outline admin-main-tab" data-tab="tab-visitors" onclick="switchAdminTab('tab-visitors')">
+                👁️ ভিজিটর লগ
             </button>
             <a href="index.html" class="btn btn-outline" style="margin-left:auto;text-decoration:none;font-size:0.85rem;">
                 🎓 স্টুডেন্ট পেজ
@@ -1222,6 +1230,119 @@
             </div>
         </div>
 
+        <!-- ================= TAB 6: VISITOR ANALYTICS & LOGS (visitor_logs) ================= -->
+        <div id="tab-visitors" class="admin-tab-content hidden">
+            <!-- Visitor Summary Cards -->
+            <div class="dash-stats-grid" id="visitorStatsGrid"></div>
+
+            <!-- Visitor Logs Table Section -->
+            <div class="admin-section">
+                <div class="admin-section-header" style="flex-wrap:wrap;gap:10px;">
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <h3 class="admin-section-title">👁️ ভিজিটর লগ তালিকা (visitor_logs)</h3>
+                        <span class="visitor-mode-badge" id="visitorModeBadge">🌐 Static Mode</span>
+                    </div>
+                    <span class="toolbar-badge" id="visitorRowCountBadge">০টি রেকর্ড</span>
+                </div>
+
+                <div class="admin-section-body">
+                    <div class="visitor-toolbar">
+                        <div class="visitor-filter-group">
+                            <select id="visitorDateFilter" class="form-select" style="width:auto;min-width:140px;height:40px;padding:0 12px;">
+                                <option value="all">📅 সকল তারিখ</option>
+                                <option value="today">🌟 আজকের লগ</option>
+                                <option value="custom">🗓️ নির্দিষ্ট তারিখ</option>
+                            </select>
+                            <input type="date" id="visitorCustomDate" class="form-input hidden" style="width:auto;height:40px;padding:0 10px;">
+                            <input type="text" id="visitorSearchInput" class="form-input" style="flex:1;min-width:190px;height:40px;" placeholder="IP / Client ID বা পেজ খুঁজুন...">
+                        </div>
+
+                        <div class="visitor-action-group">
+                            <button type="button" class="btn btn-outline" id="visitorRefreshBtn" style="height:40px;padding:0 14px;">
+                                🔄 রিফ্রেশ
+                            </button>
+                            <button type="button" class="btn btn-outline" id="visitorExportSqlBtn" style="height:40px;padding:0 14px;border-color:#0284c7;color:#0284c7;">
+                                📥 .SQL ডাউনলোড
+                            </button>
+                            <button type="button" class="btn btn-outline" id="visitorExportCsvBtn" style="height:40px;padding:0 14px;border-color:#10b981;color:#10b981;">
+                                📊 .CSV ডাউনলোড
+                            </button>
+                            <button type="button" class="btn btn-danger" id="visitorClearBtn" style="height:40px;padding:0 14px;">
+                                🗑️ লগ মুছুন
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="visitorBackendNotice" class="hidden" style="margin-bottom:14px;padding:10px 14px;border-radius:8px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);color:#b45309;font-size:0.85rem;font-weight:600;"></div>
+
+                    <div class="visitor-table-wrap">
+                        <table class="visitor-logs-table">
+                            <thead>
+                                <tr>
+                                    <th># (id)</th>
+                                    <th>IP / ক্লায়েন্ট ঠিকানা (ip_address)</th>
+                                    <th>তারিখ (visit_date)</th>
+                                    <th>সময় (visited_at)</th>
+                                    <th>পেজ (page)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="visitorLogsTableBody">
+                                <tr>
+                                    <td colspan="5" style="text-align:center;padding:28px;color:var(--text-muted);">
+                                        ভিজিটর লগ লোড হচ্ছে...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Optional MySQL / PHP Backend Settings Card -->
+            <div class="admin-section">
+                <div class="admin-section-header">
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <h3 class="admin-section-title">🗄️ ঐচ্ছিক PHP + MySQL ব্যাকএন্ড সংযোগ (cPanel / Server Hosting)</h3>
+                        <span class="toolbar-badge">database/visitor_logs.sql + api/visitor_logs.php</span>
+                    </div>
+                </div>
+
+                <div class="admin-section-body">
+                    <p style="color:var(--text-muted);font-size:0.86rem;line-height:1.65;margin-bottom:16px;">
+                        GitHub Pages বা স্ট্যাটিক হোস্টিংয়ে এটি <strong>বন্ধ (OFF)</strong> রাখুন — তখন কোনো সার্ভার ছাড়াই সাইট স্বয়ংক্রিয়ভাবে চলবে। আপনি যদি cPanel/PHP+MySQL সার্ভারে হোস্ট করেন এবং প্রতিটি ভিজিটরের আসল IP ঠিকানা MySQL-এর <code>visitor_logs</code> টেবিলে সেভ করতে চান, তবে <code>api/db_config.php</code> সেট করে নিচের সুইচটি চালু করুন:
+                    </p>
+
+                    <div class="setting-toggle-row" style="margin-bottom:14px;">
+                        <div class="setting-toggle-info">
+                            <strong>🐘 MySQL / PHP ব্যাকএন্ড API ব্যবহার করুন</strong>
+                            <span>চালু করলে ভিজিট তথ্য সরাসরি PHP API-তে পাঠানো হবে (ব্যাকএন্ড না থাকলে স্বয়ংক্রিয় Static ব্যাকআপ কাজ করবে)।</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="visitorBackendToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+                        <div class="form-group">
+                            <label class="form-label" for="visitorApiEndpoint">API Endpoint Path:</label>
+                            <input type="text" id="visitorApiEndpoint" class="form-input" placeholder="api/visitor_logs.php" value="api/visitor_logs.php">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="visitorAdminKey">Admin API Key (db_config.local.php অনুযায়ী):</label>
+                            <input type="password" id="visitorAdminKey" class="form-input" placeholder="ঐচ্ছিক সিক্রেট কী">
+                        </div>
+                    </div>
+
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                        <button type="button" class="btn btn-primary" id="visitorSaveBackendBtn" style="padding:10px 20px;">
+                            💾 ব্যাকএন্ড কনফিগারেশন সেভ ও যাচাই
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </main>
 
     <!-- Toast Container -->
@@ -1232,6 +1353,7 @@
     <script src="js/data.js"></script>
     <script src="js/results_database.js"></script>
     <script src="js/storage.js"></script>
+    <script src="js/visitor.js"></script>
     <script src="js/admin.js"></script>
     <script>
         // Tab Switcher for Admin Page
@@ -1252,6 +1374,8 @@
                 loadSiteSettingsUI();
             } else if (tabId === 'tab-security') {
                 loadSecurityFormCredentials();
+            } else if (tabId === 'tab-visitors' && typeof window.renderVisitorDashboard === 'function') {
+                window.renderVisitorDashboard();
             }
         }
 
@@ -1286,6 +1410,8 @@
                 switchAdminTab('tab-settings');
             } else if (window.location.hash === '#tab-security') {
                 switchAdminTab('tab-security');
+            } else if (window.location.hash === '#tab-visitors') {
+                switchAdminTab('tab-visitors');
             }
         });
     </script>

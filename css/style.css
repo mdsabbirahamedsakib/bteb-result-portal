@@ -932,6 +932,47 @@ body {
     font-size: 0.88rem;
 }
 
+.visitor-counter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.visitor-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    border: 1px solid var(--border-color);
+    color: var(--secondary);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.visitor-pill strong {
+    color: var(--primary);
+    font-weight: 800;
+}
+
+.visitor-live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    animation: visitorPulse 2s infinite;
+}
+
+@keyframes visitorPulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.18); opacity: 0.75; }
+}
+
 /* ================= Responsive ================= */
 @media (max-width: 900px) {
     .search-form-grid {
@@ -1098,6 +1139,16 @@ body {
 [data-theme="dark"] .site-footer {
     background: #0f172a;
     border-top-color: #1e293b;
+}
+
+[data-theme="dark"] .visitor-pill {
+    background: #1e293b;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+
+[data-theme="dark"] .visitor-pill strong {
+    color: #34d399;
 }
 
 [data-theme="dark"] .empty-state-card,

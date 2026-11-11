@@ -1,0 +1,4 @@
+# Local server credentials override (cPanel / MySQL)
+api/db_config.local.php
+.DS_Store
+Thumbs.db

@@ -223,6 +223,7 @@
             <p style="margin-top:6px;font-size:0.8rem;color:#94a3b8;">
                 ডিপ্লোমা ইন ইঞ্জিনিয়ারিং শিক্ষার্থীদের সহায়তায় সার্বিক কারিগরি তথ্য ও রিসোর্স।
             </p>
+            <div class="visitor-counter-bar" id="visitorFooterCounter"></div>
         </div>
     </footer>
 
@@ -231,10 +232,14 @@
     <script src="js/data.js"></script>
     <script src="js/results_database.js"></script>
     <script src="js/storage.js"></script>
+    <script src="js/visitor.js"></script>
     <script>
         let currentCategory = 'all';
 
         document.addEventListener('DOMContentLoaded', function () {
+            if (typeof BTEBVisitor !== 'undefined') {
+                BTEBVisitor.initFooterCounter('materials.html');
+            }
             // Check query param for category (e.g., ?cat=book)
             const urlParams = new URLSearchParams(window.location.search);
             const catParam = urlParams.get('cat');

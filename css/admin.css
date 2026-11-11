@@ -1134,3 +1134,121 @@ body.admin-locked .navbar {
     font-weight: 700;
     color: #3b82f6;
 }
+
+/* ==========================================================================
+   Visitor Analytics & Visitor Logs Styles
+   ========================================================================== */
+.visitor-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.visitor-filter-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 320px;
+}
+
+.visitor-action-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.visitor-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.visitor-logs-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.86rem;
+    text-align: left;
+}
+
+.visitor-logs-table th {
+    background: #f8fafc;
+    color: var(--secondary);
+    font-weight: 700;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.visitor-logs-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-main);
+    white-space: nowrap;
+}
+
+.visitor-logs-table tr:last-child td {
+    border-bottom: none;
+}
+
+.visitor-logs-table tbody tr:hover {
+    background: rgba(16, 185, 129, 0.04);
+}
+
+.visitor-ip-badge {
+    display: inline-block;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(59, 130, 246, 0.1);
+    color: #2563eb;
+    border: 1px solid rgba(59, 130, 246, 0.22);
+}
+
+.visitor-page-badge {
+    display: inline-block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #334155;
+}
+
+.visitor-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+[data-theme="dark"] .visitor-logs-table th {
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+[data-theme="dark"] .visitor-logs-table td {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .visitor-page-badge {
+    background: #334155;
+    color: #e2e8f0;
+}
+
+[data-theme="dark"] .visitor-ip-badge {
+    color: #60a5fa;
+}
