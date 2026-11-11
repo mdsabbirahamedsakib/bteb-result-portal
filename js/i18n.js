@@ -22,6 +22,7 @@ const BTEBLang = (function () {
     let currentLang = DEFAULT_LANG;
     let observer = null;
     let isApplying = false;
+    let origDocTitle = null;
 
     const EXACT_DICT = {
         // Brand & Navbar
@@ -290,27 +291,326 @@ const BTEBLang = (function () {
         'পোর্টালের নাম (Portal Title):': 'Portal Title:',
         'ডার্ক / লাইট মোড পরিবর্তন করুন': 'Toggle Dark / Light Mode',
         'উত্তীর্ণ (Passed) - সকল সেমিস্টার': 'Passed - All Semesters',
-        'রেফার্ড (Referred)': 'Referred'
+        'রেফার্ড (Referred)': 'Referred',
+
+        // Document <title> & Branding / Notice Variants
+        'BTEB Result & Education Portal | বাংলাদেশ কারিগরি শিক্ষা বোর্ড': 'BTEB Result & Education Portal | Bangladesh Technical Education Board',
+        'বই, নোটস ও সুপার সাজেশন | BTEB Education Portal': 'Books, Notes & Super Suggestions | BTEB Education Portal',
+        '📢 ডিপ্লোমা ইন ইঞ্জিনিয়ারিং পরীক্ষা ফলাফল ও একাডেমিক পোর্টাল।': '📢 Diploma in Engineering Examination Results & Academic Portal.',
+        '📢 ডিপ্লোমা ইন ইঞ্জিনিয়ারিং পরীক্ষা ফলাফল ও নতুন সেমিস্টারের বই-সাজেশন আপডেট করা হয়েছে।': '📢 Diploma in Engineering exam results and new semester books & suggestions have been updated.',
+
+        // Tooltips [title] & [placeholder]
+        'অ্যাডমিন পাসওয়ার্ড ও ইউজারনেম পরিবর্তন করুন': 'Change admin password and username',
+        'আজকের ভিজিটর লগ দেখুন': 'View today\'s visitor logs',
+        'আজকের মোট ভিজিট সংখ্যা': 'Total visits today',
+        'ইটালিক': 'Italic',
+        'উদ্ধৃতি (Quote)': 'Quote',
+        'এই ফাইলটি মুছে ফেলুন': 'Delete this file',
+        'এই ফাইলের ডেটা ডাউনলোড করুন': 'Download data for this file',
+        'নম্বর লিস্ট': 'Numbered List',
+        'পাসওয়ার্ড দেখুন / লুকান': 'Show / Hide Password',
+        'পিডিএফ ফাইল নির্বাচন করতে এখানে ক্লিক করুন অথবা টেনে এনে ড্রপ করুন': 'Click here or drag and drop to select PDF file(s)',
+        'বুলেট লিস্ট': 'Bullet List',
+        'বোল্ড': 'Bold',
+        'ভিজিটর লগ দেখুন': 'View visitor logs',
+        'লগআউট করুন': 'Logout',
+        'লাইট মোডে পরিবর্তন করুন': 'Switch to Light Mode',
+        'ডার্ক মোডে পরিবর্তন করুন': 'Switch to Dark Mode',
+        'লিংক': 'Link',
+        'সর্বমোট ভিজিট সংখ্যা': 'All-time total visits',
+        'সূত্র / কোড': 'Code / Formula',
+        'স্বতন্ত্র ভিজিটর সংখ্যা': 'Unique visitors count',
+        'হেডিং (H2)': 'Heading (H2)',
+        'এখানে BTEB বোর্ডের PDF থেকে কপি করা হাজার হাজার বা লক্ষাধিক লাইনের টেক্সট সরাসরি Paste করুন...': 'Paste thousands or millions of lines of text copied from the BTEB board PDF directly here...',
+        'এখানে ওয়ার্ডের মতো বিস্তারিত বিবরণ, সাজেশনের গুরুত্বপূর্ণ অধ্যায়, প্রশ্নাবলি বা সিলেবাসের পয়েন্টগুলো লিখুন...': 'Write detailed descriptions, key suggestion chapters, questions, or syllabus points like Word...',
+        'ঐচ্ছিক সিক্রেট কী': 'Optional secret key',
+        'ছবির ডিরেক্ট URL (যেমন: https://.../note.jpg) অথবা ফাইল আপলোড করুন': 'Direct image URL (e.g. https://.../note.jpg) or upload a file',
+        'নতুন পাসওয়ার্ডটি পুনরায় লিখুন': 'Re-enter new password',
+        'নতুন শক্তিশালী পাসওয়ার্ড লিখুন': 'Enter new strong password',
+        'পিডিএফের যেকোনো ১টি রোল নম্বর লিখে এখানে রেজাল্ট টেস্ট করুন...': 'Enter any roll number from the PDF here to test the result...',
+        'বর্তমান পাসওয়ার্ড লিখুন': 'Enter current password',
+        'যেমন: 2024': 'e.g. 2024',
+        'যেমন: 28542(T), 28544(T), 28553(T), 28554(T)': 'e.g. 28542(T), 28544(T), 28553(T), 28554(T)',
+        'যেমন: 28542(T), 28544(T)': 'e.g. 28542(T), 28544(T)',
+        'যেমন: ৫ম সেমিস্টার Microprocessor & Interfacing চূড়ান্ত সাজেশন ২০২৪': 'e.g. 5th Semester Microprocessor & Interfacing Final Suggestion 2024',
+        'যেমন: 601234': 'e.g. 601234',
+        'যেমন: sabbir12 বা নতুন নাম': 'e.g. sabbir12 or new username',
+        'যেমন: পলিটেকনিক টিচার্স ফোরাম': 'e.g. Polytechnic Teachers Forum',
+        'রোল নম্বর লিখুন': 'Enter roll number',
+        'সংক্ষেপে শিক্ষার্থীদের জন্য গুরুত্বপূর্ণ তথ্য...': 'Brief important information for students...',
+
+        // Select options, Marksheet Badges & Common Runtime Labels
+        '১ম পর্ব': '1st Semester',
+        '২য় পর্ব': '2nd Semester',
+        '৩য় পর্ব': '3rd Semester',
+        '৪র্থ পর্ব': '4th Semester',
+        '৫ম পর্ব': '5th Semester',
+        '৬ষ্ঠ পর্ব': '6th Semester',
+        '৭ম পর্ব': '7th Semester',
+        '৮ম পর্ব': '8th Semester',
+        'সকল সেমিস্টার': 'All Semesters',
+        'সকল পর্ব': 'All Semesters',
+        'সকল টেকনোলজি': 'All Technologies',
+        'কম্পিউটার (CST)': 'Computer (CST)',
+        'সিভিল (Civil)': 'Civil (Civil)',
+        'ইলেকট্রিক্যাল (Electrical)': 'Electrical (Electrical)',
+        'মেকানিক্যাল (Mechanical)': 'Mechanical (Mechanical)',
+        'ইলেকট্রনিক্স (Electronics)': 'Electronics (Electronics)',
+        '✓ উত্তীর্ণ (Passed)': '✓ Passed',
+        '⚠ রেফার্ড (Referred)': '⚠ Referred',
+        '✕ ড্রপ আউট (Dropped Out)': '✕ Dropped Out',
+        '✕ ড্রপ আউট (Dropped)': '✕ Dropped',
+        '✓ শিক্ষার্থী পাওয়া গেছে:': '✓ Student Found:',
+        '📄 অফিসিয়াল PDF থেকে ভেরিফাইড (সর্বোচ্চ অগ্রাধিকারপ্রাপ্ত)': '📄 Official PDF Verified (Highest Priority)',
+        '📄 অফিসিয়াল PDF ও শিট মার্জড (PDF অগ্রাধিকারপ্রাপ্ত)': '📄 Official PDF & Sheet Merged (PDF Priority)',
+        '📄 অফিসিয়াল PDF ও রেজাল্ট শিট (PDF অগ্রাধিকারপ্রাপ্ত)': '📄 Official PDF & Result Sheet (PDF Priority)',
+        'অনুসন্ধান চলছে...': 'Searching...',
+        'প্রসেসিং চলছে...': 'Processing...',
+        'জেনারেট হচ্ছে...': 'Generating...',
+        'স্ক্যান হচ্ছে...': 'Scanning...',
+        '⏳ অপেক্ষমাণ': '⏳ Waiting',
+        '❌ ত্রুটি': '❌ Error',
+        'রোল নং': 'Roll No',
+        'ফলাফল': 'Result',
+        'জিপিএ / বিষয়': 'GPA / Subjects',
+        'ইনস্টিটিউট (EIIN)': 'Institute (EIIN)',
+        'বই (Book)': 'Book',
+        'নোটস (Note)': 'Notes',
+        '📚 বই': '📚 Book',
+        '📝 নোটস': '📝 Notes',
+        '🎯 সাজেশন': '🎯 Suggestion',
+        '✏️ এডিট': '✏️ Edit',
+        'মুছে ফেলুন': 'Delete',
+        'বিটিইবি টিম': 'BTEB Team',
+        'অজানা': 'Unknown',
+        'কোনো অতিরিক্ত কনটেন্ট নেই।': 'No additional content available.',
+        '🔗 ডাউনলোড / ড্রাইভ লিংক:': '🔗 Download / Drive Link:',
+
+        // Admin Panel Missing Headings, Labels, Forms & Split-Node Fragments
+        '➕ নতুন রেজাল্ট যোগ / পরিবর্তন ফর্ম': '➕ Add / Edit Result Form',
+        '➕ নতুন রেজাল্ট যোগ করুন': '➕ Add New Result',
+        '"সেভ করুন"': '"Save to DB"',
+        '✍️ নতুন বই, হ্যান্ডনোটস বা সাজেশন যুক্ত করুন': '✍️ Add New Book, Handnotes or Suggestion',
+        '✅ অভিনন্দন! রেজাল্টগুলো সফলভাবে স্থায়ী ফাইলে সেভ করা হয়েছে এবং স্টুডেন্ট পেজে উন্মুক্ত হয়েছে!': '✅ Congratulations! Results have been permanently saved and published on the Student Page!',
+        '⚠️ রেজাল্ট মোছার ডিলিট অপশন (Delete Options)': '⚠️ Result Deletion Options',
+        '⚠️ সকল রেজাল্ট মুছে ফেলুন (Delete All)': '⚠️ Delete All Results',
+        '⚡ প্রসেসিং সময়': '⚡ Processing Time',
+        '⚡ স্ক্যান সময় ও পেজ': '⚡ Scan Time & Pages',
+        '১ বা ততোধিক (১০-১৫টি) বিশাল রেজাল্ট পিডিএফ কোনো হ্যাং ছাড়াই স্বয়ংক্রিয়ভাবে পার্স ও O(1) ইনডেক্স হবে।': '1 or more (10–15+) large result PDFs are automatically parsed and O(1) indexed without freezing.',
+        '১০০% রেডি ও স্বয়ংসম্পূর্ণ': '100% Ready & Self-Contained',
+        'Admin API Key (db_config.local.php অনুযায়ী):': 'Admin API Key (per db_config.local.php):',
+        'BTEB বোর্ডের এক বা একাধিক রেজাল্ট PDF ফাইল এখানে ড্রপ করুন অথবা ক্লিক করুন': 'Drop one or more BTEB Result PDF files here or click to browse',
+        'GitHub Pages বা স্ট্যাটিক হোস্টিংয়ে এটি': 'Keep this',
+        'আপনার হোস্টিংয়ের': 'Upload or drop these files directly into your hosting\'s',
+        'ইউজারনেম ছোট বা বড় হাতের অক্ষরে লিখলেও লগইন করা যাবে।': 'Username is case-insensitive during login.',
+        'উপরে ফরম পূরণ করে নতুন বই, নোটস বা সাজেশন পাবলিশ করুন।': 'Fill out the form above to publish a new book, note, or suggestion.',
+        '-এ কাজ করে। তাই এটি যেকোনো ফ্রি বা পেইড ওয়েব হোস্টিংয়ে তাৎক্ষণিক চলবে:': 'storage. So it works immediately on any free or paid web host:',
+        'এই প্রজেক্টটি কোনো সার্ভার-সাইড ব্যাকএন্ড (Node.js/PHP) ছাড়াই সম্পূর্ণ ক্লায়েন্ট সাইড এবং ব্রাউজারের': 'This project runs completely client-side without any backend (Node.js/PHP), using your browser\'s',
+        'এখানে আপনার সেভ করা প্রতিটি PDF রেজাল্ট ফাইল আলাদাভাবে সুরক্ষিত থাকবে। আপনি যেকোনো সময় দেখতে, ডাউনলোড করতে বা মুছে ফেলতে পারেন।': 'All your saved PDF result files are stored securely here. You can view, download, or delete them anytime.',
+        'এবং নতুন': 'and a new',
+        'ওয়েবসাইটের উপরে চলমান নোটিশ বা হেডলাইন বার প্রদর্শন করবে।': 'Displays a scrolling notice or headline bar at the top of the website.',
+        'ওয়েবসাইটের নোটিশ টেক্সট (Notice Bar Message):': 'Website Notice Text (Notice Bar Message):',
+        'কোনো বই বা সাজেশন যুক্ত করা হয়নি': 'No books or suggestions added yet',
+        'ক্যাটাগরি (Category): *': 'Category: *',
+        'গতি: ০ রোল/সেকেন্ড | সময়: ০ms': 'Speed: 0 rolls/sec | Time: 0ms',
+        'গতি: হিসাব হচ্ছে...': 'Speed: Calculating...',
+        'গিটহব রিপোজিটরিতে কোড পুশ করে': 'Push the code to your GitHub repository and select',
+        'চালু (ON)': 'ON',
+        'চালু করলে ভিজিট তথ্য সরাসরি PHP API-তে পাঠানো হবে (ব্যাকএন্ড না থাকলে স্বয়ংক্রিয় Static ব্যাকআপ কাজ করবে)।': 'When enabled, visit data is sent directly to the PHP API (auto-falls back to static storage if unavailable).',
+        'চালু রাখলে বোর্ড ফাইনাল পরীক্ষার চূড়ান্ত সুপার সাজেশনগুলো দৃশ্যমান হবে।': 'Keep ON to display final super suggestions for board exams.',
+        'চালু রাখলে শিক্ষার্থীরা অধ্যায়ভিত্তিক হ্যান্ডনোটস ও লেকচার শিট পড়তে পারবে।': 'Keep ON to allow students to read chapter-wise handnotes and lecture sheets.',
+        'চালু রাখলে শিক্ষার্থীরা রেজাল্ট খুঁজতে পারবে। বন্ধ রাখলে শিক্ষার্থী পেজে মেইনটেন্যান্স ব্যানার দেখাবে।': 'Keep ON to let students search results. Turn OFF to show a maintenance banner on the student page.',
+        'চালু রাখলে শিক্ষার্থীরা সকল ডিপ্লোমা পাঠ্যবই দেখতে ও ডাউনলোড করতে পারবে।': 'Keep ON to allow students to view and download all Diploma textbooks.',
+        'ছবি বা কভার ফটো (Image / Diagram / Note Screenshot):': 'Cover Image / Diagram / Note Screenshot:',
+        'ছবির প্রিভিউ সক্রিয়': 'Image Preview Active',
+        'জন শিক্ষার্থীর রেজাল্ট প্রস্তুত।': 'student results ready.',
+        'টেকনোলজি (Technology): *': 'Technology: *',
+        'টেবিলে সেভ করতে চান, তবে': 'table, configure',
+        'ডাউনলোড বা ড্রাইভ লিংক (PDF / Drive URL):': 'Download or Drive Link (PDF / Drive URL):',
+        'ডেটা প্রসেসিং চলছে (Non-Freezing Async Chunk)...': 'Processing data (Non-Freezing Async Chunk)...',
+        'নতুন রেজাল্ট মোড': 'New Result Mode',
+        'এডিট মোড (সম্পাদনা)': 'Edit Mode',
+        'নিচের': 'Click the',
+        'নিচের বাটনে ক্লিক করলে সকল সেভ করা রেজাল্ট শীট মুছে যাবে।': 'Clicking the button below will permanently erase all saved result sheets.',
+        'নিচের সুইচগুলো অন (ON) রাখলে শিক্ষার্থীরা সরাসরি বই, নোটস ও সাজেশন পেজে যেতে পারবে। বন্ধ (OFF) রাখলে "Coming Soon" মোডাল দেখাবে:': 'Keep switches ON so students can access Books, Notes & Suggestions directly. Turn OFF to show a "Coming Soon" modal:',
+        'নিরাপত্তার জন্য বর্তমান পাসওয়ার্ড লিখুন': 'Enter current password for security verification',
+        'নিরাপত্তার স্বার্থে বর্তমান পাসওয়ার্ড যাচাই করে নতুন': 'For security, verify your current password to set a new',
+        'নির্দিষ্ট রোল নম্বর সরাসরি ডিলিট:': 'Delete Specific Roll Number Directly:',
+        'পয়েন্ট (যেমন: 3.53) অথবা ref লিখুন': 'GPA (e.g. 3.53) or ref',
+        'পরীক্ষার বছর (Exam Year):': 'Exam Year:',
+        'পিডিএফ স্ক্যান কিউ চলছে...': 'PDF scan queue running...',
+        'পৃষ্ঠা: ০ / ০': 'Pages: 0 / 0',
+        'প্রবিধান (Regulation): *': 'Regulation: *',
+        'প্রসেস হচ্ছে: ০ / ০ রোল': 'Processing: 0 / 0 rolls',
+        'ফলাফল স্ট্যাটাস (Status): *': 'Result Status: *',
+        'ফোল্ডারে এই ফাইলগুলো সরাসরি আপলোড বা ড্রপ করুন।': 'folder.',
+        'বন্ধ (OFF)': 'Disabled (OFF)',
+        'বাটনে ক্লিক করলেই তথ্যগুলো ব্রাউজারে স্থায়ী ফাইলে সেভ হয়ে যাবে এবং স্টুডেন্ট পেজ থেকে যেকোনো শিক্ষার্থী দেখতে পারবে।': 'button below to permanently save the results in browser storage so students can access them.',
+        'বিটিইবি ফরম্যাট: বিষয় কোডের পর (T) তত্ত্বীয় বা (P) ব্যবহারিক উল্লেখ করতে পারেন।': 'BTEB Format: You may append (T) for Theory or (P) for Practical after subject codes.',
+        'বিস্তারিত কনটেন্ট / নোটস বা অধ্যায় সূচি (Rich Text Editor):': 'Detailed Content / Notes or Chapter Index (Rich Text Editor):',
+        'বোর্ডের মূল রেজাল্ট PDF ফাইলটি সরাসরি নিচে ড্রপ করুন। কোনো সার্ভার ছাড়াই আপনার ব্রাউজার': 'Drop the official board result PDF file below. Without any server, your browser uses the',
+        'ভিজিটর লগ লোড হচ্ছে...': 'Loading visitor logs...',
+        'কোনো ভিজিটর লগ পাওয়া যায়নি। স্টুডেন্ট পেজ (': 'No visitor logs found. Visiting the Student Page (',
+        ') ভিজিট করলে এখানে স্বয়ংক্রিয়ভাবে লগ সংরক্ষিত হবে।': ') will automatically save logs here.',
+        'মোট প্রসেসড রোল': 'Total Processed Rolls',
+        'মোট শিক্ষার্থী:': 'Total Students:',
+        'উত্তীর্ণ:': 'Passed:',
+        'রেফার্ড:': 'Referred:',
+        'ড্রপ:': 'Dropped:',
+        'যাচাই করুন': 'Verify',
+        'যেকোনো নির্দিষ্ট শিক্ষার্থীর রোল নম্বর লিখে সার্চ করুন। শিক্ষার্থীর পূর্ববর্তী সকল সেমিস্টারের জিপিএ ও রেফার্ড বিষয় সরাসরি নিচের এডিটর বক্সে লোড হবে:': 'Search any student roll number. All previous semester GPAs and referred subjects will load directly into the editor below:',
+        'রাখুন — তখন কোনো সার্ভার ছাড়াই সাইট স্বয়ংক্রিয়ভাবে চলবে। আপনি যদি cPanel/PHP+MySQL সার্ভারে হোস্ট করেন এবং প্রতিটি ভিজিটরের আসল IP ঠিকানা MySQL-এর': 'on GitHub Pages or static hosting — the site works automatically without a server. If hosting on cPanel/PHP+MySQL and you want real visitor IPs saved in the MySQL',
+        'রিসেট': 'Reset',
+        'রেজাল্ট সার্ভার:': 'Result Server:',
+        'রেফার্ড বা ড্রপ বিষয়সমূহ (Referred Subject Codes):': 'Referred or Dropped Subjects (Subject Codes):',
+        'রোল নম্বর (Roll Number): *': 'Roll Number: *',
+        'লাইব্রেরি ব্যবহার করে হাজার হাজার পৃষ্ঠা থেকে টেক্সট ও রোল নম্বর নিজে নিজেই স্ক্যান করে রেজাল্ট সংরক্ষণ করবে:': 'library to automatically scan text and roll numbers from thousands of pages and save results:',
+        'লেখক / শিক্ষক / সূত্র (Author/Source):': 'Author / Teacher / Source:',
+        'শিরোনাম (Title): *': 'Title: *',
+        'সংক্ষিপ্ত বিবরণী (Short Description):': 'Short Description:',
+        'সকল রেজাল্ট শিট এবং বই-সাজেশনের পূর্ণাঙ্গ ব্যাকআপ ডাউনলোড করুন অথবা ইমপোর্ট করুন:': 'Download or import a complete backup of all result sheets and study materials:',
+        'সকল সেভ করা রেজাল্ট একসাথে ডিলিট:': 'Delete All Saved Results at Once:',
+        'সতর্কতা:': 'Warning:',
+        'সম্পূর্ণ ফোল্ডারটি ড্র্যাগ অ্যান্ড ড্রপ করলেই ১ ক্লিকে গ্লোবাল সিডিএন-এ হোস্ট হয়ে যাবে।': 'Drag and drop the entire folder to deploy on a global CDN in 1 click.',
+        'সিলেক্ট করলেই ফ্রিতে সাইট লাইভ হবে।': 'to publish the site live for free.',
+        'সেট করুন। পরবর্তীতে অ্যাডমিন প্যানেলে লগইন করার সময় এই নতুন তথ্য ব্যবহার করতে হবে:': '. Use these new credentials for future Admin Panel logins:',
+        'সেট করে নিচের সুইচটি চালু করুন:': 'and enable the switch below:',
+        'সেমিস্টার (Semester): *': 'Semester: *',
+        'সেমিস্টার ভিত্তিক জিপিএ পয়েন্ট (GPA-1 থেকে GPA-8):': 'Semester-wise GPA Points (GPA-1 to GPA-8):',
+        '🌐 যেভাবে হোস্ট করবেন:': '🌐 How to Host:',
+        '🎉 পিডিএফ স্ক্যান সম্পন্ন! মোট': '🎉 PDF scan complete! Total',
+        '🎓 রেজাল্ট সার্চ ইঞ্জিন ও সার্ভার (Result Engine Master Switch)': '🎓 Result Search Engine & Server (Master Switch)',
+        '🎯 সুপার সাজেশন (Suggestion)': '🎯 Super Suggestion',
+        '🎯 সুপার সাজেশন মেনু (Suggestions Menu)': '🎯 Suggestions Menu',
+        '🏠 হোমপেজ খুলুন': '🏠 Open Homepage',
+        '👥 মোট:': '👥 Total:',
+        '💡 ৩-৪ লক্ষ রোলের মেমোরি সাইজ ৮৫% কমে যাবে': '💡 Reduces memory size for 300k–400k rolls by 85%',
+        '💾 results_database.js ফাইল ডাউনলোড': '💾 Download results_database.js',
+        '💾 এই রেজাল্টগুলো ডেটাবেসে নিশ্চিত সেভ করুন (Save to DB)': '💾 Confirm & Save Results to Database (Save to DB)',
+        '💾 রেজাল্ট আপডেট করুন (Update Result)': '💾 Update Result',
+        '💾 আপডেট করুন (Update)': '💾 Update',
+        '📁 PDF ফাইল নির্বাচন করুন (Select PDF Files)': '📁 Choose PDF Files',
+        '📁 ছবি নির্বাচন': '📁 Choose Image',
+        '📁 ফোল্ডার কাঠামো:': '📁 Folder Structure:',
+        '📄 BTEB রেজাল্ট শিট এডিটর': '📄 BTEB Result Sheet Editor',
+        '📋 ডেমো বই-সাজেশন লোড করুন': '📋 Load Demo Materials',
+        '📋 পিডিএফ থেকে প্রাপ্ত শিক্ষার্থীদের তালিকা (নমুনা প্রথম ১০টি):': '📋 Parsed Student List from PDF (First 10 Sample):',
+        '📋 ব্যাচ কিউ স্ট্যাটাস (Batch File Queue):': '📋 Batch File Queue Status:',
+        '📚 পাঠ্যবই ও সিলেবাস (Book)': '📚 Textbook & Syllabus (Book)',
+        '📚 প্রকাশিত বই ও সাজেশনের তালিকা': '📚 Published Books & Suggestions List',
+        '📚 বই ও সিলেবাস মেনু (Books Menu)': '📚 Books & Syllabus Menu',
+        '📝 হ্যান্ডনোটস ও শিট (Note)': '📝 Handnotes & Sheet (Note)',
+        '📝 হ্যান্ডনোটস মেনু (Handnotes Menu)': '📝 Handnotes Menu',
+        '📢 নোটিশ অ্যানাউন্সমেন্ট বার (Notice Announcement Bar)': '📢 Notice Announcement Bar',
+        '📤 ৩-৪ লক্ষ রেজাল্ট বাল্ক আপলোডার ও ফাস্ট প্রসেসর': '📤 High-Speed Bulk Result Uploader (300k–400k Rolls)',
+        '📥 ডাউনলোড': '📥 Download',
+        '📥 রেজাল্ট ডেটাবেস ফাইল ডাউনলোড (.JSON)': '📥 Download Result Database (.JSON)',
+        '📥 সম্পূর্ণ ডেটাবেস ডাউনলোড (.JSON)': '📥 Download Full Database (.JSON)',
+        '📦 সম্পূর্ণ ডেটাবেজ ব্যাকআপ (JSON)': '📦 Full Database Backup (JSON)',
+        '🔄 ফর্ম রিসেট': '🔄 Reset Form',
+        '🔍 সেভ হওয়া রেজাল্ট ইনস্ট্যান্ট ভেরিফিকেশন (Instant Test)': '🔍 Instant Verification Test (Saved Results)',
+        '🗑️ এই রেজাল্ট মুছে ফেলুন (Delete)': '🗑️ Delete This Result',
+        '🗑️ ডিলিট': '🗑️ Delete',
+        '🗑️ রিমুভ': '🗑️ Remove',
+        '🗑️ সম্পূর্ণ ডেটাবেস মুছে ফেলুন (Delete All)': '🗑️ Delete Entire Database (Delete All)',
+        '🚀 Export Optimized JSON (হোস্টিংয়ে আপলোডের জন্য)': '🚀 Export Optimized JSON (For Hosting Upload)',
+        '🚀 পোস্ট পাবলিশ করুন (Publish)': '🚀 Publish Post',
+        '🚀 যেকোনো হোস্টিংয়ে ব্যবহারের নিয়মাবলী (Deployment Guide)': '🚀 Deployment Guide (Works on Any Hosting)',
+        '🚀 স্টুডেন্ট পেজে রেজাল্ট দেখুন ➔': '🚀 View Result on Student Page ➔',
+        '🟢 স্টুডেন্ট পেজে লাইভ সক্রিয়': '🟢 Live on Student Page',
+        '🧹 পরিষ্কার করুন': '🧹 Clear',
+        'কোনো রেজাল্ট শীট সেভ করা হয়নি': 'No result sheets saved yet',
+        'উপরে BTEB পিডিএফ থেকে রেজাল্ট পেস্ট করুন এবং "Save & Publish" করুন।': 'Paste results from a BTEB PDF above and click "Save & Publish".',
+        'উপরে BTEB পিডিএফ থেকে রেজাল্ট পেস্ট করুন এবং': 'Paste results from a BTEB PDF above and click',
+
+        // Admin Instant Test / Auth / Toast / Status Messages
+        'অনুগ্রহ করে টেস্ট করার জন্য একটি রোল নম্বর লিখুন।': 'Please enter a roll number to test.',
+        '✓ রেজাল্ট পাওয়া গেছে!': '✓ Result Found!',
+        'রোল:': 'Roll:',
+        '| স্ট্যাটাস:': '| Status:',
+        '| ইনস্টিটিউট:': '| Institute:',
+        '👉 স্টুডেন্ট পেজে সম্পূর্ণ মার্কশিট কার্ড দেখুন ➔': '👉 View full marksheet on Student Page ➔',
+        'অনুগ্রহ করে অ্যাডমিন ইউজারনেম ও পাসওয়ার্ড দুটিই লিখুন!': 'Please enter both admin username and password!',
+        '❌ ভুল ইউজারনেম বা পাসওয়ার্ড! সঠিক পাসওয়ার্ড ছাড়া অ্যাডমিন প্যানেলে প্রবেশ সম্পূর্ণ নিষিদ্ধ।': '❌ Invalid username or password! Access denied without valid credentials.',
+        '❌ পরপর ৫ বার ভুল পাসওয়ার্ড! নিরাপত্তার স্বার্থে ৩০ সেকেন্ড অপেক্ষা করুন।': '❌ 5 consecutive wrong attempts! Please wait 30 seconds for security.',
+        '✅ স্বাগতম! সফলভাবে অ্যাডমিন প্যানেলে প্রবেশ করেছেন।': '✅ Welcome! Successfully logged into Admin Panel.',
+        '🚪 সফলভাবে লগআউট সম্পন্ন হয়েছে। অ্যাডমিন প্যানেল লক করা হয়েছে।': '🚪 Logged out successfully. Admin Panel is now locked.',
+        '⏱️ দীর্ঘক্ষণ নিষ্ক্রিয় থাকার কারণে নিরাপত্তার স্বার্থে অ্যাডমিন প্যানেল স্বয়ংক্রিয় লক করা হয়েছে।': '⏱️ Admin Panel automatically locked due to prolonged inactivity.',
+        '⚠️ বর্তমান পাসওয়ার্ড লিখুন!': '⚠️ Please enter current password!',
+        '❌ বর্তমান পাসওয়ার্ডটি সঠিক নয়!': '❌ Current password is incorrect!',
+        '⚠️ নতুন ইউজারনেম খালি রাখা যাবে না!': '⚠️ New username cannot be empty!',
+        '⚠️ নতুন পাসওয়ার্ড খালি রাখা যাবে না!': '⚠️ New password cannot be empty!',
+        '⚠️ নতুন পাসওয়ার্ড এবং নিশ্চিতকরণ পাসওয়ার্ড মেলেনি!': '⚠️ New password and confirm password do not match!',
+        '✅ ইউজারনেম ও পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে! পরবর্তী লগইনে এই তথ্য কার্যকর হবে।': '✅ Username & password updated! Will apply on next login.',
+        '❌ ক্রেডেনশিয়াল সংরক্ষণ করতে ব্যর্থ হয়েছে!': '❌ Failed to save credentials!',
+        '🧹 এডিটর পরিষ্কার করা হয়েছে।': '🧹 Editor cleared.',
+        '⚠️ অনুগ্রহ করে রেজাল্ট শীটের টেক্সট পেস্ট করুন!': '⚠️ Please paste result sheet text!',
+        'প্রসেসিং শুরু হচ্ছে...': 'Starting processing...',
+        'হিসাব চলছে...': 'Calculating...',
+        '❌ কোনো রোল নম্বর খুঁজে পাওয়া যায়নি! সঠিক BTEB ফরম্যাটে পেস্ট করুন।': '❌ No roll numbers found! Paste in valid BTEB format.',
+        '🚀 অপ্টিমাইজড JSON ডাউনলোড সম্পন্ন! এটি যেকোনো ওয়েব হোস্টিংয়ে ব্যবহার উপযোগী।': '🚀 Optimized JSON downloaded! Ready for any web host.',
+        '⚠️ কোনো রোল নম্বর পাওয়া যায়নি!': '⚠️ No roll numbers found!',
+        '⚠️ কোনো রেজাল্ট ডেটা সংরক্ষিত নেই!': '⚠️ No result data stored!',
+        '🚀 সম্পূর্ণ সিস্টেমের অপ্টিমাইজড JSON ডাউনলোড হয়েছে!': '🚀 Full system Optimized JSON downloaded!',
+        '🟢 রেজাল্ট সার্ভার চালু (ON) করা হয়েছে। শিক্ষার্থীরা এখন রেজাল্ট দেখতে পারবে।': '🟢 Result server turned ON. Students can now search results.',
+        '🔴 রেজাল্ট সার্ভার বন্ধ (OFF) করা হয়েছে। শিক্ষার্থীরা মেইনটেন্যান্স ম্যাসেজ দেখবে।': '🔴 Result server turned OFF. Students will see maintenance notice.',
+        '✅ মেইনটেন্যান্স ম্যাসেজ আপডেট করা হয়েছে।': '✅ Maintenance message updated.',
+        '📦 সম্পূর্ণ ব্যাকআপ (JSON) ডাউনলোড শুরু হয়েছে...': '📦 Full backup (JSON) download started...',
+        '📄 টেক্সট ব্যাকআপ ডাউনলোড শুরু হয়েছে...': '📄 Text backup download started...',
+        '💾 results_database.js ফাইল ডাউনলোড সম্পন্ন হয়েছে!': '💾 results_database.js file downloaded!',
+        '📥 রেজাল্ট ডেটাবেস ফাইল (.json) ডাউনলোড হয়েছে!': '📥 Result database file (.json) downloaded!',
+        'ℹ️ মুছে ফেলার মতো কোনো রেজাল্ট ডেটাবেসে নেই।': 'ℹ️ No results found in database to delete.',
+        '🗑️ ডেটাবেসের সমস্ত রেজাল্ট ও ফাইল সম্পূর্ণ মুছে ফেলা হয়েছে।': '🗑️ All database results and files have been deleted.',
+        'ℹ️ মুছে ফেলার মতো কোনো সেভ করা শীট নেই।': 'ℹ️ No saved sheets to delete.',
+        '🗑️ সকল রেজাল্ট শীট ও ডেটাবেস সম্পূর্ণ খালি করা হয়েছে।': '🗑️ All result sheets and database cleared.',
+        '📥 ফাইল ডাউনলোড সম্পন্ন হয়েছে!': '📥 File download completed!',
+        '🗑️ শীটটি মুছে ফেলা হয়েছে।': '🗑️ Sheet deleted.',
+        '📷 ছবি সফলভাবে যুক্ত হয়েছে!': '📷 Image added successfully!',
+        '⚠️ অনুগ্রহ করে একটি শিরোনাম লিখুন!': '⚠️ Please enter a title!',
+        '✅ পোস্ট সফলভাবে আপডেট করা হয়েছে!': '✅ Post updated successfully!',
+        '🗑️ মেটেরিয়ালটি মুছে ফেলা হয়েছে।': '🗑️ Material deleted.',
+        '📋 ৪টি নমুনা বই, নোটস ও সাজেশন লোড করা হয়েছে!': '📋 4 sample books, notes & suggestions loaded!',
+        '✅ সাইট সেটিংস ও মাস্টার সুইচবোর্ড কনফিগারেশন সংরক্ষিত হয়েছে!': '✅ Site settings & master switches saved!',
+        '⚠️ অনুগ্রহ করে রোল নম্বর লিখুন!': '⚠️ Please enter a roll number!',
+        '⚠️ রোল নম্বর দেওয়া আবশ্যক!': '⚠️ Roll number is required!',
+        '⚠️ কোনো রোল নম্বর পাওয়া যায়নি!': '⚠️ No roll number found!',
+        '⚠️ অনুগ্রহ করে যে রোলটি মুছতে চান তা লিখুন!': '⚠️ Please enter the roll number to delete!',
+        '🗑️ সকল রেজাল্ট সফলভাবে মুছে ফেলা হয়েছে!': '🗑️ All results deleted successfully!',
+        '⚠️ অনুগ্রহ করে এক বা একাধিক সঠিক PDF (.pdf) ফাইল নির্বাচন করুন!': '⚠️ Please select one or more valid PDF (.pdf) files!',
+        '✅ ডেটাবেসে স্থায়ীভাবে সংরক্ষিত হয়েছে!': '✅ Permanently saved to database!',
+        '🔄 ভিজিটর লগ তালিকা রিফ্রেশ করা হয়েছে!': '🔄 Visitor logs refreshed!',
+        '📥 visitor_logs (.SQL) ফাইল ডাউনলোড শুরু হয়েছে!': '📥 visitor_logs (.SQL) download started!',
+        '📊 visitor_logs (.CSV) ফাইল ডাউনলোড শুরু হয়েছে!': '📊 visitor_logs (.CSV) download started!',
+        '🗑️ সকল ভিজিটর লগ সফলভাবে মুছে ফেলা হয়েছে!': '🗑️ All visitor logs cleared successfully!',
+        '💾 PHP/MySQL ব্যাকএন্ড সেটিংস সংরক্ষিত ও যাচাই করা হয়েছে!': '💾 PHP/MySQL backend settings saved & verified!',
+        '💾 Static (LocalStorage) মোড সক্রিয় করা হয়েছে!': '💾 Static (LocalStorage) mode enabled!',
+        'ব্যাকএন্ড সার্ভারের সাথে সংযোগ করা যায়নি (Static মোড দেখানো হচ্ছে)।': 'Unable to connect to backend server (showing Static mode).'
     };
 
-    const DYNAMIC_PATTERNS = [
-        [/^মোট\s+([০-৯\d,]+)টি\s+রিসোর্স\s+পাওয়া\s+গেছে$/, function (_, n) { return 'Total ' + toAsciiDigits(n) + ' resource(s) found'; }],
-        [/^রেফার্ড\s*\(Referred\)\s*-\s*([০-৯\d,]+)টি\s+বিষয়$/, function (_, n) { return 'Referred - ' + toAsciiDigits(n) + ' Subject(s)'; }],
-        [/^⚠️\s*রেফার্ড\s*\/\s*অকৃতকার্য\s+বিষয়সমূহ\s*\(Referred Subjects\s*-\s*([০-৯\d,]+)টি\s+বিষয়\)$/, function (_, n) { return '⚠️ Referred / Failed Subjects (' + toAsciiDigits(n) + ' Subject(s))'; }],
-        [/^শিক্ষার্থী\s*\(রোল:\s*([^)]+)\)$/, function (_, roll) { return 'Student (Roll: ' + roll + ')'; }],
-        [/^⚡\s*মাত্র\s+([০-৯\d.,]+)ms\s+এ\s+প্রস্তুত\s*\(O\(1\)\s*Engine\)$/, function (_, ms) { return '⚡ Ready in ' + toAsciiDigits(ms) + 'ms (O(1) Engine)'; }],
-        [/^প্রবিধান:\s*([০-৯\d]+)$/, function (_, reg) { return 'Regulation: ' + toAsciiDigits(reg); }],
-        [/^প্রবিধান\s+([০-৯\d]+)$/, function (_, reg) { return 'Regulation ' + toAsciiDigits(reg); }],
-        [/^([০-৯\d,]+)টি\s+রেকর্ড$/, function (_, n) { return toAsciiDigits(n) + ' record(s)'; }],
-        [/^([০-৯\d,]+)\s*দিন$/, function (_, n) { return toAsciiDigits(n) + ' day(s)'; }],
-        [/^([০-৯\d,]+)টি\s+আইটেম$/, function (_, n) { return toAsciiDigits(n) + ' item(s)'; }],
-        [/^ডিটেক্টেড\s+রোল:\s*([০-৯\d,]+)$/, function (_, n) { return 'Detected Rolls: ' + toAsciiDigits(n); }],
-        [/^শীঘ্রই\s+আসছে:\s*(.+)$/, function (_, mod) { return 'Coming Soon: ' + mod; }],
-        [/^আমাদের "BTEB Result & Education Portal" এর পরবর্তী ধাপে (.+) ফিচারটি উন্মুক্ত করা হবে।$/, function (_, mod) { return 'The ' + mod + ' feature will be unlocked in the next update of "BTEB Result & Education Portal".'; }],
-        [/^([১-৮\d]+(?:ম|য়|য়|র্থ|ষ্ঠ)?)\s+সেমিস্টার$/, function (_, sem) { return toOrdinalSem(sem) + ' Semester'; }]
-    ];
-
     const BN_DIGITS = { '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4', '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9' };
+
+    const BN_MONTHS = {
+        'জানুয়ারি': 'January', 'জানুয়ারি': 'January',
+        'ফেব্রুয়ারি': 'February', 'ফেব্রুয়ারি': 'February',
+        'মার্চ': 'March',
+        'এপ্রিল': 'April',
+        'মে': 'May',
+        'জুন': 'June',
+        'জুলাই': 'July',
+        'আগস্ট': 'August',
+        'সেপ্টেম্বর': 'September',
+        'অক্টোবর': 'October',
+        'নভেম্বর': 'November',
+        'ডিসেম্বর': 'December'
+    };
+
+    const STATUS_MAP = {
+        'উত্তীর্ণ': 'Passed',
+        'রেফার্ড': 'Referred',
+        'ড্রপ আউট': 'Dropped Out',
+        'সেমিস্টার ড্রপ': 'Semester Drop',
+        'অনুপস্থিত': 'Absent'
+    };
 
     function toAsciiDigits(str) {
         return String(str).replace(/[০-৯]/g, function (d) { return BN_DIGITS[d] || d; });
@@ -321,6 +621,120 @@ const BTEBLang = (function () {
         const map = { '1': '1st', '2': '2nd', '3': '3rd', '4': '4th', '5': '5th', '6': '6th', '7': '7th', '8': '8th' };
         return map[clean] || clean;
     }
+
+    function translateDateTimeText(str) {
+        let out = toAsciiDigits(String(str));
+        Object.keys(BN_MONTHS).forEach(function (bnM) {
+            if (out.indexOf(bnM) !== -1) {
+                out = out.split(bnM).join(BN_MONTHS[bnM]);
+            }
+        });
+        out = out.replace(/পূর্বাহ্ণ/g, 'AM').replace(/অপরাহ্ণ/g, 'PM');
+        return out;
+    }
+
+    function translateSubTerm(term) {
+        if (!term) return term;
+        const trimmed = String(term).trim();
+        if (Object.prototype.hasOwnProperty.call(EXACT_DICT, trimmed)) return EXACT_DICT[trimmed];
+        if (Object.prototype.hasOwnProperty.call(STATUS_MAP, trimmed)) return STATUS_MAP[trimmed];
+        return toAsciiDigits(trimmed);
+    }
+
+    const DYNAMIC_PATTERNS = [
+        [/^মোট\s+([০-৯\d,]+)টি\s+রিসোর্স\s+পাওয়া\s+গেছে$/, function (_, n) { return 'Total ' + toAsciiDigits(n) + ' resource(s) found'; }],
+        [/^রেফার্ড\s*\(Referred\)\s*-\s*([০-৯\d,]+)টি\s+বিষয়$/, function (_, n) { return 'Referred - ' + toAsciiDigits(n) + ' Subject(s)'; }],
+        [/^⚠️\s*রেফার্ড\s*\/\s*অকৃতকার্য\s+বিষয়সমূহ\s*\(Referred Subjects\s*-\s*([০-৯\d,]+)টি\s+বিষয়\)$/, function (_, n) { return '⚠️ Referred / Failed Subjects (' + toAsciiDigits(n) + ' Subject(s))'; }],
+        [/^কারিগরি\s+বিষয়\s*\(([^)]+)\)$/, function (_, code) { return 'Technical Subject (' + toAsciiDigits(code) + ')'; }],
+        [/^শিক্ষার্থী\s*\(রোল:\s*([^)]+)\)$/, function (_, roll) { return 'Student (Roll: ' + roll + ')'; }],
+        [/^⚡\s*মাত্র\s+([০-৯\d.,]+)ms\s+এ\s+প্রস্তুত\s*\(O\(1\)\s*Engine\)$/, function (_, ms) { return '⚡ Ready in ' + toAsciiDigits(ms) + 'ms (O(1) Engine)'; }],
+        [/^প্রবিধান:\s*([০-৯\d]+)$/, function (_, reg) { return 'Regulation: ' + toAsciiDigits(reg); }],
+        [/^প্রবিধান\s+([০-৯\d]+)$/, function (_, reg) { return 'Regulation ' + toAsciiDigits(reg); }],
+        [/^([০-৯\d,]+)টি\s+রেকর্ড$/, function (_, n) { return toAsciiDigits(n) + ' record(s)'; }],
+        [/^([০-৯\d,]+)\s*দিন$/, function (_, n) { return toAsciiDigits(n) + ' day(s)'; }],
+        [/^([০-৯\d,]+)টি\s+আইটেম$/, function (_, n) { return toAsciiDigits(n) + ' item(s)'; }],
+        [/^ডিটেক্টেড\s+রোল:\s*([০-৯\d,]+)$/, function (_, n) { return 'Detected Rolls: ' + toAsciiDigits(n); }],
+        [/^শীঘ্রই\s+আসছে:\s*(.+)$/, function (_, mod) { return 'Coming Soon: ' + translateSubTerm(mod); }],
+        [/^আমাদের\s+"BTEB Result & Education Portal"\s+এর\s+পরবর্তী\s+ধাপে\s+(.+?)\s+ফিচারটি\s+উন্মুক্ত\s+করা\s+হবে।$/, function (_, mod) { return 'The ' + translateSubTerm(mod) + ' feature will be unlocked in the next update of "BTEB Result & Education Portal".'; }],
+        [/^✅\s*উত্তীর্ণ:\s*([০-৯\d,]+)$/, function (_, n) { return '✅ Passed: ' + toAsciiDigits(n); }],
+        [/^⚠️\s*রেফার্ড:\s*([০-৯\d,]+)$/, function (_, n) { return '⚠️ Referred: ' + toAsciiDigits(n); }],
+        [/^❌\s*ড্রপ:\s*([০-৯\d,]+)$/, function (_, n) { return '❌ Dropped: ' + toAsciiDigits(n); }],
+        [/^📊\s*পাসের\s+হার:\s*([০-৯\d.,]+)%$/, function (_, n) { return '📊 Pass Rate: ' + toAsciiDigits(n) + '%'; }],
+        [/^📅\s*আপলোড\s+ও\s+সেভ:\s*(.+?)\s*\|\s*🕐\s*(.+?)\s*\|$/, function (_, d, t) { return '📅 Uploaded & Saved: ' + translateDateTimeText(d) + ' | 🕐 ' + translateDateTimeText(t) + ' |'; }],
+        [/^শীট:\s*(.+)$/, function (_, rest) {
+            const r = rest.trim();
+            if (r === 'সকল') return 'Sheet: All';
+            if (r === 'সক্রিয়') return 'Sheet: Active';
+            const semMatch = r.match(/^([১-৮\d]+)(?:ম|য়|য়|র্থ|ষ্ঠ)?\s*সেমিস্টার$/);
+            if (semMatch) return 'Sheet: ' + toOrdinalSem(semMatch[1]) + ' Semester';
+            return 'Sheet: ' + toAsciiDigits(r);
+        }],
+        [/^রোল:\s*([০-৯\d]+)\s*\|\s*ফলাফল:\s*(.+?)(?:\s*\(([০-৯\d]+)(?:ম|য়|য়|র্থ|ষ্ঠ)?\s*পর্ব\))?$/, function (_, roll, st, sem) {
+            const stEn = translateSubTerm(st);
+            return 'Roll: ' + toAsciiDigits(roll) + ' | Result: ' + stEn + (sem ? ' (' + toOrdinalSem(sem) + ' Sem)' : '');
+        }],
+        [/^পৃষ্ঠা:\s*([০-৯\d,]+)\s*\/\s*([০-৯\d,]+)(.*)$/, function (_, cur, tot, extra) {
+            let ex = toAsciiDigits(extra || '').replace(/সর্বমোট\s*রোল:/g, 'Total Rolls:');
+            return 'Pages: ' + toAsciiDigits(cur) + ' / ' + toAsciiDigits(tot) + ex;
+        }],
+        [/^প্রসেস\s+হচ্ছে:\s*([০-৯\d,]+)\s*\/\s*([০-৯\d,]+)\s*রোল(.*)$/, function (_, cur, tot, extra) {
+            return 'Processing: ' + toAsciiDigits(cur) + ' / ' + toAsciiDigits(tot) + ' rolls' + toAsciiDigits(extra || '');
+        }],
+        [/^গতি:\s*(.+)$/, function (_, rest) {
+            let out = toAsciiDigits(rest)
+                .replace(/হিসাব\s+হচ্ছে\.\.\./g, 'Calculating...')
+                .replace(/রোল\/সেকেন্ড/g, 'rolls/sec')
+                .replace(/পৃষ্ঠা\/সেকেন্ড/g, 'pages/sec')
+                .replace(/সময়:/g, 'Time:')
+                .replace(/ব্রাউজার\s+মেমোরি:\s*সুরক্ষিত/g, 'Browser Memory: Safe');
+            return 'Speed: ' + out;
+        }],
+        [/^মোট\s+সময়:\s*(.+)$/, function (_, t) { return 'Total Time: ' + toAsciiDigits(t); }],
+        [/^✅\s*সম্পন্ন\s*\(([^)]+)\)$/, function (_, inner) {
+            return '✅ Completed (' + toAsciiDigits(inner).replace(/রোল/g, 'rolls') + ')';
+        }],
+        [/^✅\s*সকল\s+PDF\s+পার্স\s+ও\s+সেভ\s+সম্পন্ন!(.*)$/, function (_, rest) { return '✅ All PDFs Parsed & Saved!' + toAsciiDigits(rest); }],
+        [/^🎉\s*সর্বমোট\s+([০-৯\d,]+)টি\s+ফাইলের\s+([০-৯\d,]+)\s+পৃষ্ঠা\s+সফলভাবে\s+স্ক্যান\s+ও\s+স্থায়ী\s+ডেটাবেসে\s+সেভ\s+হয়েছে!$/, function (_, files, pages) {
+            return '🎉 Successfully scanned ' + toAsciiDigits(pages) + ' pages across ' + toAsciiDigits(files) + ' file(s) and saved to permanent database!';
+        }],
+        [/^✅\s*অভিনন্দন!\s*([০-৯\d,]+)টি\s+পিডিএফ\s+থেকে\s+সর্বমোট\s+([০-৯\d,]+)\s+জন\s+শিক্ষার্থীর\s+রেজাল্ট\s+সফলভাবে\s+ডেটাবেসে\s+সংরক্ষিত\s+হয়েছে(?:\s+এবং\s+স্টুডেন্ট\s+পেজে\s+উন্মুক্ত\s+হয়েছে)?!$/, function (_, files, students) {
+            return '✅ Congratulations! ' + toAsciiDigits(students) + ' student results from ' + toAsciiDigits(files) + ' PDF(s) saved to database and published!';
+        }],
+        [/^🎉\s*অভিনন্দন!\s*([০-৯\d,]+)টি\s+পিডিএফ\s+থেকে\s+([০-৯\d,]+)\s+জন\s+শিক্ষার্থীর\s+রেজাল্ট\s+সফলভাবে\s+ডেটাবেসে\s+সংরক্ষিত\s+হয়েছে!$/, function (_, files, students) {
+            return '🎉 Congratulations! ' + toAsciiDigits(students) + ' student results from ' + toAsciiDigits(files) + ' PDF(s) saved to database!';
+        }],
+        [/^📑\s*মোট\s+([০-৯\d,]+)টি\s+PDF\s+ফাইল\s+প্রসেসিং\s+কিউতে\s+যুক্ত\s+হয়েছে।$/, function (_, n) {
+            return '📑 ' + toAsciiDigits(n) + ' PDF file(s) added to processing queue.';
+        }],
+        [/^\|\s*জিপিএ:\s*(.+)$/, function (_, rest) {
+            return '| GPA: ' + toAsciiDigits(rest).replace(/সেমিস্টার\s+([০-৯\d]+)/g, function (_, s) { return 'Sem ' + toAsciiDigits(s); });
+        }],
+        [/^\|\s*রেফার্ড\s+বিষয়:\s*(.+)$/, function (_, rest) {
+            return '| Referred Subjects: ' + toAsciiDigits(rest);
+        }],
+        [/^✕\s*রোল\s*#?([০-৯\d]+)\s+এই\s+পিডিএফ\s+বা\s+ডেটাবেসে\s+পাওয়া\s+যায়নি।$/, function (_, r) {
+            return '✕ Roll #' + toAsciiDigits(r) + ' was not found in this PDF or database.';
+        }],
+        [/^✏️\s*রেজাল্ট\s+সম্পাদনা:\s*রোল\s+([০-৯\d]+)$/, function (_, r) { return '✏️ Edit Result: Roll ' + toAsciiDigits(r); }],
+        [/^✓\s*শিক্ষার্থী\s+([০-৯\d]+)-এর\s+তথ্য\s+সফলভাবে\s+লোড\s+হয়েছে!$/, function (_, r) { return '✓ Loaded student ' + toAsciiDigits(r) + ' data successfully!'; }],
+        [/^⚠️\s*রোল\s+([০-৯\d]+)\s+সিস্টেমে\s+পাওয়া\s+যায়নি।\s*আপনি\s+নিচে\s+সরাসরি\s+নতুন\s+রেজাল্ট\s+হিসেবে\s+যোগ\s+করতে\s+পারেন।$/, function (_, r) { return '⚠️ Roll ' + toAsciiDigits(r) + ' not found. You can add it below as a new result.'; }],
+        [/^✅\s*রোল\s+([০-৯\d]+)-এর\s+ফলাফল\s+সফলভাবে\s+ডেটাবেজে\s+সংরক্ষিত\s+হয়েছে!$/, function (_, r) { return '✅ Result for Roll ' + toAsciiDigits(r) + ' saved to database!'; }],
+        [/^✅\s*রোল\s+([০-৯\d]+)-এর\s+ফলাফল\s+সফলভাবে\s+আপডেট\s+করা\s+হয়েছে!$/, function (_, r) { return '✅ Result for Roll ' + toAsciiDigits(r) + ' updated!'; }],
+        [/^🗑️\s*রোল\s+([০-৯\d]+)-এর\s+ফলাফল\s+সফলভাবে\s+মুছে\s+ফেলা\s+হয়েছে!$/, function (_, r) { return '🗑️ Result for Roll ' + toAsciiDigits(r) + ' deleted!'; }],
+        [/^⚠️\s*রোল\s+([০-৯\d]+)\s+খুঁজে\s+পাওয়া\s+যায়নি!$/, function (_, r) { return '⚠️ Roll ' + toAsciiDigits(r) + ' not found!'; }],
+        [/^✅\s*প্রসেসিং\s+সম্পন্ন!\s*মোট\s+([০-৯\d,]+)টি\s+রোল\s+প্রসেস\s+হয়েছে।$/, function (_, n) { return '✅ Processing complete! ' + toAsciiDigits(n) + ' rolls processed.'; }],
+        [/^✅\s*সফলভাবে\s+সেভ\s+হয়েছে!\s*মোট\s+([০-৯\d,]+)টি\s+রোল\s+ডেটাবেসে\s+সেভ\s+করা\s+হয়েছে।\s*\(উত্তীর্ণ:\s*([০-৯\d,]+),\s*রেফার্ড:\s*([০-৯\d,]+),\s*ড্রপ:\s*([০-৯\d,]+)\)$/, function (_, t, p, r, d) {
+            return '✅ Saved successfully! ' + toAsciiDigits(t) + ' rolls stored (Passed: ' + toAsciiDigits(p) + ', Referred: ' + toAsciiDigits(r) + ', Dropped: ' + toAsciiDigits(d) + ')';
+        }],
+        [/^🔒\s*অতিরিক্ত\s+ভুল\s+চেষ্টার\s+কারণে\s+লগইন\s+([০-৯\d]+)\s+সেকেন্ডের\s+জন্য\s+লক\s+রয়েছে!$/, function (_, s) { return '🔒 Login locked for ' + toAsciiDigits(s) + ' seconds due to repeated invalid attempts!'; }],
+        [/^⚠️\s*ব্যাকএন্ড\s+বার্তা:\s*(.+)$/, function (_, msg) { return '⚠️ Backend Notice: ' + translateSubTerm(msg); }],
+        [/^([১-৮\d]+(?:ম|য়|য়|র্থ|ষ্ঠ)?)\s+পর্ব$/, function (_, sem) { return toOrdinalSem(sem) + ' Semester'; }],
+        [/^([১-৮\d]+(?:ম|য়|য়|র্থ|ষ্ঠ)?|all)\s+সেমিস্টার$/, function (_, sem) {
+            return String(sem).toLowerCase() === 'all' ? 'All Semesters' : toOrdinalSem(sem) + ' Semester';
+        }],
+        [/^([১-৮]+(?:ম|য়|য়|র্থ|ষ্ঠ))$/, function (_, sem) { return toOrdinalSem(sem); }],
+        [/^[০-৯]+(?:[.,][০-৯]+)*%?$/, function (m) { return toAsciiDigits(m); }]
+    ];
 
     function hasBanglaChars(str) {
         return /[\u0980-\u09FF]/.test(str);
@@ -355,20 +769,26 @@ const BTEBLang = (function () {
             }
         }
 
-        // Targeted inline replacement for partial labels ending with ":" or "জন"
+        // Targeted inline replacement for standalone "জন" or STATUS_MAP tokens
         if (normalized === 'জন') {
             return lead + 'visitor(s)' + tail;
+        }
+        if (Object.prototype.hasOwnProperty.call(STATUS_MAP, normalized)) {
+            return lead + STATUS_MAP[normalized] + tail;
         }
 
         return original;
     }
 
-    function shouldSkipNode(node) {
+    function shouldSkipNode(node, isAttr) {
         if (!node) return true;
         let el = node.nodeType === 1 ? node : node.parentElement;
         while (el) {
             const tag = el.tagName;
-            if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'TEXTAREA' || tag === 'CODE' || tag === 'PRE' || tag === 'SVG') {
+            if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'CODE' || tag === 'PRE' || tag === 'SVG') {
+                return true;
+            }
+            if (!isAttr && tag === 'TEXTAREA') {
                 return true;
             }
             if (el.id === 'langToggleBtn' || el.id === 'adminUserBadge' || el.classList && el.classList.contains('notranslate')) {
@@ -380,7 +800,7 @@ const BTEBLang = (function () {
     }
 
     function processTextNode(textNode, targetLang) {
-        if (shouldSkipNode(textNode)) return;
+        if (shouldSkipNode(textNode, false)) return;
         const currentVal = textNode.nodeValue;
         if (!currentVal || !currentVal.trim()) return;
 
@@ -402,7 +822,7 @@ const BTEBLang = (function () {
     }
 
     function processElementAttrs(el, targetLang) {
-        if (!el || el.nodeType !== 1 || shouldSkipNode(el)) return;
+        if (!el || el.nodeType !== 1 || shouldSkipNode(el, true)) return;
         const attrs = ['placeholder', 'title'];
         let saved = origAttrMap.get(el);
         if (!saved) {
@@ -448,12 +868,23 @@ const BTEBLang = (function () {
         }
     }
 
+    function updateDocumentTitle(lang) {
+        if (typeof document === 'undefined') return;
+        if (origDocTitle === null) {
+            origDocTitle = document.title || '';
+        }
+        const nextTitle = lang === 'en' ? translateText(origDocTitle) : origDocTitle;
+        if (document.title !== nextTitle) {
+            document.title = nextTitle;
+        }
+    }
+
     function updateToggleButtonUI(lang) {
         const btn = document.getElementById('langToggleBtn');
         if (btn) {
             btn.textContent = lang === 'en' ? 'বাংলা' : 'English';
-            btn.setAttribute('aria-label', lang === 'en' ? 'বাংলা ভাষায় দেখুন' : 'Switch to English');
-            btn.setAttribute('title', lang === 'en' ? 'বাংলা ভাষায় পরিবর্তন করুন' : 'Switch language to English');
+            btn.setAttribute('aria-label', lang === 'en' ? 'Switch to Bangla' : 'Switch to English');
+            btn.setAttribute('title', lang === 'en' ? 'Switch language to Bangla' : 'Switch language to English');
         }
         if (typeof document !== 'undefined' && document.documentElement) {
             document.documentElement.setAttribute('lang', lang === 'en' ? 'en' : 'bn');
@@ -476,6 +907,7 @@ const BTEBLang = (function () {
         if (observer) observer.disconnect();
         try {
             updateToggleButtonUI(nextLang);
+            updateDocumentTitle(nextLang);
             translateSubtree(document.body, nextLang);
         } finally {
             isApplying = false;
@@ -483,11 +915,39 @@ const BTEBLang = (function () {
         }
     }
 
+    const OBSERVER_CONFIG = {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ['title', 'placeholder']
+    };
+
     function startObserver() {
         if (typeof MutationObserver === 'undefined' || typeof document === 'undefined' || !document.body) return;
         if (!observer) {
             observer = new MutationObserver(function (mutations) {
-                if (isApplying || currentLang !== 'en') return;
+                if (isApplying) return;
+
+                if (currentLang !== 'en') {
+                    for (let i = 0; i < mutations.length; i++) {
+                        const m = mutations[i];
+                        if (m.type === 'characterData' && m.target && m.target.nodeType === 3) {
+                            if (!shouldSkipNode(m.target, false)) {
+                                origTextMap.set(m.target, m.target.nodeValue);
+                            }
+                        } else if (m.type === 'attributes' && m.target && m.target.nodeType === 1) {
+                            const attr = m.attributeName;
+                            if ((attr === 'title' || attr === 'placeholder') && !shouldSkipNode(m.target, true)) {
+                                let saved = origAttrMap.get(m.target);
+                                if (!saved) { saved = {}; origAttrMap.set(m.target, saved); }
+                                saved[attr] = m.target.getAttribute(attr);
+                            }
+                        }
+                    }
+                    return;
+                }
+
                 isApplying = true;
                 observer.disconnect();
                 try {
@@ -498,6 +958,19 @@ const BTEBLang = (function () {
                                 origTextMap.set(m.target, m.target.nodeValue);
                             }
                             processTextNode(m.target, 'en');
+                        } else if (m.type === 'attributes' && m.target && m.target.nodeType === 1) {
+                            const attr = m.attributeName;
+                            if ((attr === 'title' || attr === 'placeholder') && !shouldSkipNode(m.target, true)) {
+                                const curVal = m.target.getAttribute(attr);
+                                if (curVal !== null) {
+                                    let saved = origAttrMap.get(m.target);
+                                    if (!saved) { saved = {}; origAttrMap.set(m.target, saved); }
+                                    if (hasBanglaChars(curVal) || !Object.prototype.hasOwnProperty.call(saved, attr)) {
+                                        saved[attr] = curVal;
+                                    }
+                                    processElementAttrs(m.target, 'en');
+                                }
+                            }
                         } else if (m.type === 'childList' && m.addedNodes) {
                             for (let j = 0; j < m.addedNodes.length; j++) {
                                 translateSubtree(m.addedNodes[j], 'en');
@@ -506,11 +979,11 @@ const BTEBLang = (function () {
                     }
                 } finally {
                     isApplying = false;
-                    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+                    observer.observe(document.body, OBSERVER_CONFIG);
                 }
             });
         }
-        observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+        observer.observe(document.body, OBSERVER_CONFIG);
     }
 
     function getSavedLanguage() {
