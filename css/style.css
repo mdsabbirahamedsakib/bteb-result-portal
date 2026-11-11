@@ -1195,6 +1195,31 @@ body {
     box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
 }
 
+/* ─── Language Switcher Button (Bangla / English) ─── */
+.lang-toggle-btn {
+    height: 38px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1.5px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-main);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 700;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.lang-toggle-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.16);
+}
+
 /* ─── Shimmer Skeleton Loading State ─── */
 .skeleton-container {
     background: var(--bg-card);
