@@ -1393,7 +1393,24 @@ async function extractAndParsePdfStream(file, defaultSemester, onProgress) {
         // CRITICAL: Cleanup page canvas representation immediately to avoid browser out-of-memory!
         page.cleanup();
 
-        // Stream parse page text into students immediately
+        // 1. Line-by-line parsing
+        var lines = pageText.split('\n');
+        for (var ln = 0; ln < lines.length; ln++) {
+            var lineStr = lines[ln].trim();
+            if (lineStr.length >= 6) {
+                var lineStudents = BTEBParser.parseAll(lineStr, defaultSemester);
+                for (var ls = 0; ls < lineStudents.length; ls++) {
+                    var lst = lineStudents[ls];
+                    lst.source = 'pdf';
+                    lst.sourcePriority = 10;
+                    lst.sources = ['pdf'];
+                    lst.sourceLabel = '📄 অফিসিয়াল PDF থেকে ভেরিফাইড (সর্বোচ্চ অগ্রাধিকারপ্রাপ্ত)';
+                    allStudentsMap.set(lst.roll, lst);
+                }
+            }
+        }
+
+        // 2. Also run page-level parse to catch multi-line entries
         var pageStudents = BTEBParser.parseAll(pageText, defaultSemester);
         for (var s = 0; s < pageStudents.length; s++) {
             var st = pageStudents[s];
@@ -1401,7 +1418,9 @@ async function extractAndParsePdfStream(file, defaultSemester, onProgress) {
             st.sourcePriority = 10;
             st.sources = ['pdf'];
             st.sourceLabel = '📄 অফিসিয়াল PDF থেকে ভেরিফাইড (সর্বোচ্চ অগ্রাধিকারপ্রাপ্ত)';
-            allStudentsMap.set(st.roll, st);
+            if (!allStudentsMap.has(st.roll)) {
+                allStudentsMap.set(st.roll, st);
+            }
         }
 
         if (pageNum <= 50) {

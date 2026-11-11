@@ -290,8 +290,26 @@ const BTEBParser = (function () {
             latestSemester = defSem;
         }
 
+        // Build structured GPA object gpa1 .. gpa8
+        const gpaObj = { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 7: null, 8: null };
+        for (let s = 1; s <= 8; s++) {
+            if (semesters[s] && semesters[s].isPassed && semesters[s].value) {
+                gpaObj[s] = semesters[s].value;
+            }
+        }
+        const referredList = referredSubjects.map(s => s.raw || s.code);
+
         return {
-            roll: roll,
+            roll: String(roll).trim(),
+            gpa8: gpaObj[8],
+            gpa7: gpaObj[7],
+            gpa6: gpaObj[6],
+            gpa5: gpaObj[5],
+            gpa4: gpaObj[4],
+            gpa3: gpaObj[3],
+            gpa2: gpaObj[2],
+            gpa1: gpaObj[1],
+            referred: referredList,
             status: status,
             statusBangla: statusBangla,
             statusType: statusType,
@@ -375,9 +393,30 @@ const BTEBParser = (function () {
             }
         }
 
+        // Pattern 0: Exact BTEB Multi-Semester GPA Pattern (Passed with gpa5..gpa1):
+        // /(\d{6})\s*\(gpa5:\s*([\d\.\w]+),\s*gpa4:\s*([\d\.\w]+),\s*gpa3:\s*([\d\.\w]+),\s*gpa2:\s*([\d\.\w]+),\s*gpa1:\s*([\d\.\w]+)\)/g
+        const patternExactGpa5 = /(\d{6})\s*\(gpa5:\s*([\d\.\w]+),\s*gpa4:\s*([\d\.\w]+),\s*gpa3:\s*([\d\.\w]+),\s*gpa2:\s*([\d\.\w]+),\s*gpa1:\s*([\d\.\w]+)\)/gi;
+        let match;
+        while ((match = patternExactGpa5.exec(masked)) !== null) {
+            const r = match[1];
+            const body = 'gpa5: ' + match[2] + ', gpa4: ' + match[3] + ', gpa3: ' + match[4] + ', gpa2: ' + match[5] + ', gpa1: ' + match[6];
+            addCandidate(r, body);
+        }
+
+        // Pattern 0B: Flexible gpa sequences inside parentheses or braces
+        const patternGpaSeq = /\b(\d{5,8})\b\s*[\(\{\[]([^\)\}\]]*gpa\d+[^\)\}\]]*)[\)\}\]]/gi;
+        while ((match = patternGpaSeq.exec(masked)) !== null) {
+            addCandidate(match[1], unmaskSubjectParentheses(match[2]));
+        }
+
+        // Pattern 0C: Referred or Promoted with ref_sub:
+        const patternRefSub = /\b(\d{5,8})\b\s*[\(\{\[]\s*(?:ref_sub\s*[:=]\s*)?([^\)\}\]]*(?:«[TPtp\s,]+»|\d{4,6})[^\)\}\]]*)[\)\}\]]/gi;
+        while ((match = patternRefSub.exec(masked)) !== null) {
+            addCandidate(match[1], unmaskSubjectParentheses(match[2]));
+        }
+
         // Pattern 1: Standard Bracketed: \b(ROLL)\b \s* [({[] (BODY) [)}]
         const pattern1 = /\b(\d{5,8})\b\s*[\(\{\[]([^\)\}\]]+)[\)\}\]]/g;
-        let match;
         while ((match = pattern1.exec(masked)) !== null) {
             addCandidate(match[1], unmaskSubjectParentheses(match[2]));
         }

@@ -117,8 +117,31 @@ const BTEBStorage = (function () {
             sourceLabel = '📋 কপি-পেস্ট রেজাল্ট শিট';
         }
 
+        var gpaObj = { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 7: null, 8: null };
+        for (var s = 1; s <= 8; s++) {
+            if (mergedSemesters[s] && mergedSemesters[s].value) {
+                gpaObj[s] = mergedSemesters[s].value;
+            } else if (dominant['gpa' + s]) {
+                gpaObj[s] = dominant['gpa' + s];
+            } else if (subordinate['gpa' + s]) {
+                gpaObj[s] = subordinate['gpa' + s];
+            }
+        }
+        var refList = (dominant.referred && dominant.referred.length > 0) 
+            ? dominant.referred 
+            : (dominant.referredSubjects || []).map(function(sub){ return sub.raw || sub.code; });
+
         return {
             roll: dominant.roll,
+            gpa8: gpaObj[8],
+            gpa7: gpaObj[7],
+            gpa6: gpaObj[6],
+            gpa5: gpaObj[5],
+            gpa4: gpaObj[4],
+            gpa3: gpaObj[3],
+            gpa2: gpaObj[2],
+            gpa1: gpaObj[1],
+            referred: refList,
             status: dominant.status,
             statusBangla: dominant.statusBangla,
             statusType: dominant.statusType,

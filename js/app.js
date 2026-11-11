@@ -283,6 +283,24 @@ document.addEventListener('DOMContentLoaded', function () {
         var referredSubjects = data.referredSubjects || [];
         var status = data.status || 'Passed';
 
+        // Auto-adapt from flat structure: gpa1..gpa8 and referred: []
+        var referredList = data.referred || [];
+        if ((!referredSubjects || referredSubjects.length === 0) && referredList.length > 0) {
+            referredSubjects = referredList.map(function(refCode) {
+                var codeOnly = String(refCode).replace(/\(.*\)/, '').trim();
+                var isT = String(refCode).includes('T');
+                var isP = String(refCode).includes('P');
+                var typeLabel = (isT && isP) ? 'তত্ত্বীয় ও ব্যবহারিক (T,P)' : (isT ? 'তত্ত্বীয় (Theory)' : (isP ? 'ব্যবহারিক (Practical)' : 'সাধারণ'));
+                var badgeClass = (isT && isP) ? 'badge-danger' : (isT ? 'badge-warning' : 'badge-info');
+                return {
+                    code: codeOnly,
+                    raw: String(refCode).trim(),
+                    typeLabel: typeLabel,
+                    badgeClass: badgeClass
+                };
+            });
+        }
+
         var studentMeta = (typeof BTEBData !== 'undefined' && BTEBData.getStudentMeta) ? BTEBData.getStudentMeta(data.roll) : {
             name: 'শিক্ষার্থী (রোল: ' + data.roll + ')',
             institute: 'বাংলাদেশ কারিগরি শিক্ষা বোর্ড আওতাধীন পলিটেকনিক ইনস্টিটিউট',
@@ -389,6 +407,21 @@ document.addEventListener('DOMContentLoaded', function () {
 
         for (var s = 1; s <= 8; s++) {
             var semData = semesters[s];
+            var flatGpa = data['gpa' + s];
+            if (!semData && flatGpa) {
+                var isRef = String(flatGpa).toLowerCase().startsWith('ref');
+                var isAbs = String(flatGpa).toLowerCase().startsWith('abs');
+                var isDrop = String(flatGpa).toLowerCase().startsWith('drop');
+                var num = parseFloat(flatGpa);
+                semData = {
+                    semester: s,
+                    value: isRef ? 'Referred' : (isAbs ? 'Absent' : (isDrop ? 'Dropped' : (isNaN(num) ? flatGpa : num.toFixed(2)))),
+                    numericValue: isNaN(num) ? null : num,
+                    isPassed: !isRef && !isAbs && !isDrop && !isNaN(num),
+                    isReferred: isRef,
+                    isAbsent: isAbs
+                };
+            }
             var gpaDisplay = '—';
             var semStatusBadge = '<span class="tag tag-muted">ফলাফল নেই</span>';
             var remarks = 'পরীক্ষা অনুষ্ঠিত হয়নি / রেকর্ড নেই';
